@@ -6,11 +6,14 @@ import { AppShell, Loading, Logo, useMedplum, useMedplumProfile } from '@medplum
 import {
   IconApps,
   IconBook2,
+  IconCalendar,
   IconCalendarEvent,
+  IconChecklist,
   IconClipboardCheck,
   IconMail,
   IconPill,
   IconPrinter,
+  IconReceipt,
   IconSettingsAutomation,
   IconUserPlus,
   IconUsers,
@@ -51,11 +54,21 @@ import { ResourceDetailPage } from './pages/resource/ResourceDetailPage';
 import { ResourceEditPage } from './pages/resource/ResourceEditPage';
 import { ResourceHistoryPage } from './pages/resource/ResourceHistoryPage';
 import { ResourcePage } from './pages/resource/ResourcePage';
-import { SchedulePage } from './pages/schedule/SchedulePage';
+import { SchedulePage as ProviderSchedulePage } from './pages/schedule/SchedulePage';
 import { SearchPage } from './pages/SearchPage';
 import { SignInPage } from './pages/SignInPage';
 import { SpacesPage } from './pages/spaces/SpacesPage';
 import { TasksPage } from './pages/tasks/TasksPage';
+// Custom WiderCircle pages
+import { AppointmentsPage as WCAppointmentsPage } from './pages/appointments/AppointmentsPage';
+import { AssessmentsPage as WCAssessmentsPage } from './pages/assessments/AssessmentsPage';
+import { BillingPage as WCBillingPage } from './pages/billing/BillingPage';
+import { CarePlanPage as WCCarePlanPage } from './pages/careplan/CarePlanPage';
+import { ConsentsPage as WCConsentsPage } from './pages/consents/ConsentsPage';
+import { BillingDashboardPage } from './pages/BillingDashboardPage';
+import { TaskDashboardPage } from './pages/TaskDashboardPage';
+import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
+import { PublicConsentPage } from './pages/PublicConsentPage';
 
 export function App(): JSX.Element | null {
   const medplum = useMedplum();
@@ -119,6 +132,14 @@ export function App(): JSX.Element | null {
                     },
                   },
                   { icon: <IconPrinter />, label: 'Faxes', href: '/Fax/Communication' },
+                ],
+              },
+              {
+                title: 'Care Delivery',
+                links: [
+                  { icon: <IconChecklist />, label: 'My Tasks', href: '/my-tasks' },
+                  { icon: <IconCalendar />, label: 'My Schedule', href: '/my-schedule' },
+                  { icon: <IconReceipt />, label: 'Billing Dashboard', href: '/billing-dashboard' },
                 ],
               },
               {
@@ -188,6 +209,11 @@ export function App(): JSX.Element | null {
               />
               <Route path="/Patient/new" element={<ResourceCreatePage />} />
               <Route path="/Patient/:patientId" element={<PatientPage />}>
+                <Route path="careplan" element={<WCCarePlanPage />} />
+                <Route path="billing" element={<WCBillingPage />} />
+                <Route path="consents" element={<WCConsentsPage />} />
+                <Route path="assessments" element={<WCAssessmentsPage />} />
+                <Route path="appointments" element={<WCAppointmentsPage />} />
                 <Route path="Encounter/new" element={<EncounterModal />} />
                 <Route path="Encounter/:encounterId" element={<EncounterChartPage />}>
                   <Route path="Task/:taskId" element={<TaskDetailsModal />} />
@@ -222,11 +248,16 @@ export function App(): JSX.Element | null {
               </Route>
               <Route path="/Task" element={<TasksPage />} />
               <Route path="/Task/:taskId" element={<TasksPage />} />
+              {/* WiderCircle CHW features */}
+              <Route path="/billing-dashboard" element={<BillingDashboardPage />} />
+              <Route path="/my-tasks" element={<TaskDashboardPage />} />
+              <Route path="/my-schedule" element={<CHWSchedulePage />} />
+              <Route path="/public/consent/:questionnaireId/:patientId" element={<PublicConsentPage />} />
               <Route path="/Fax/Communication" element={<FaxPage />} />
               <Route path="/Fax/Communication/:faxId" element={<FaxPage />} />
               <Route path="/onboarding" element={<IntakeFormPage />} />
-              <Route path="/Calendar/Schedule" element={<SchedulePage />} />
-              <Route path="/Calendar/Schedule/:id" element={<SchedulePage />} />
+              <Route path="/Calendar/Schedule" element={<ProviderSchedulePage />} />
+              <Route path="/Calendar/Schedule/:id" element={<ProviderSchedulePage />} />
               <Route path="/signin" element={<SignInPage />} />
               {hasDoseSpot && <Route path="/dosespot" element={<DoseSpotNotificationsPage />} />}
               {hasScriptSure && <Route path="/scriptsure" element={<ScriptSurePage />} />}

@@ -1,0 +1,143 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "PlanDefinition",
+        "status": "active",
+        "name": "chi-sdoh",
+        "title": "CHI - Social Determinants of Health",
+        "description": "Community Health Integration care plan template focused on SDoH barriers.",
+        "type": {"coding": [{"code": "clinical-protocol"}]},
+        "action": [
+          {
+            "title": "Secure stable housing",
+            "description": "Goal: Secure stable housing within 90 days",
+            "priority": "routine",
+            "documentation": [{"type": "documentation", "display": "Z59.0 - Homelessness"}],
+            "action": [
+              {"title": "Connect with housing authority", "description": "Intervention: Contact local housing programs"},
+              {"title": "Weekly follow-up calls", "description": "Intervention: Check on housing search progress"}
+            ]
+          },
+          {
+            "title": "Address food insecurity",
+            "description": "Goal: Ensure consistent access to nutritious food",
+            "priority": "routine",
+            "documentation": [{"type": "documentation", "display": "Z59.4 - Lack of adequate food"}],
+            "action": [
+              {"title": "Food bank referral", "description": "Intervention: Connect to local food bank"},
+              {"title": "SNAP application assistance", "description": "Intervention: Help apply for food assistance"}
+            ]
+          },
+          {
+            "title": "Improve transportation access",
+            "description": "Goal: Reliable transportation to medical appointments",
+            "priority": "routine",
+            "documentation": [{"type": "documentation", "display": "Z59.82 - Transportation insecurity"}],
+            "action": [
+              {"title": "Medical transport enrollment", "description": "Intervention: Enroll in medical transportation service"}
+            ]
+          }
+        ]
+      },
+      "request": {"method": "POST", "url": "PlanDefinition", "ifNoneExist": "name=chi-sdoh"}
+    },
+    {
+      "resource": {
+        "resourceType": "PlanDefinition",
+        "status": "active",
+        "name": "pin-chf",
+        "title": "PIN - Congestive Heart Failure",
+        "description": "Principal Illness Navigation care plan for CHF patients.",
+        "type": {"coding": [{"code": "clinical-protocol"}]},
+        "action": [
+          {
+            "title": "Blood pressure: <130/80 mmHg",
+            "description": "Goal: Target blood pressure <130/80 mmHg daily. Duration: 6 months.",
+            "priority": "urgent",
+            "action": [
+              {"title": "Education: Biometric Targets", "description": "Intervention: Teach patient about BP monitoring"},
+              {"title": "Weekly BP monitoring", "description": "Intervention: Patient logs daily BP readings"}
+            ]
+          },
+          {
+            "title": "Heart rate (resting) 60-70 bpm",
+            "description": "Goal: Target resting heart rate 60-70 bpm. Duration: 6 months.",
+            "priority": "urgent",
+            "action": [
+              {"title": "Medication adherence check", "description": "Intervention: Verify beta-blocker compliance"}
+            ]
+          },
+          {
+            "title": "95% adherence to prescribed medications",
+            "description": "Goal: Medication adherence above 95%. Duration: 6 months.",
+            "priority": "urgent",
+            "action": [
+              {"title": "Pill organizer setup", "description": "Intervention: Provide and set up pill organizer"},
+              {"title": "Medication refill reminders", "description": "Intervention: Set up pharmacy auto-refill"}
+            ]
+          },
+          {
+            "title": "Follow heart-healthy, low sodium diet",
+            "description": "Goal: Sodium intake below 2000mg/day. Duration: 6 months.",
+            "priority": "routine",
+            "action": [
+              {"title": "Nutrition counseling referral", "description": "Intervention: Refer to dietitian"}
+            ]
+          },
+          {
+            "title": "Engage in physical activity weekly",
+            "description": "Goal: 150 minutes weekly moderate activity. Duration: 6 months.",
+            "priority": "routine",
+            "action": [
+              {"title": "Exercise plan development", "description": "Intervention: Create personalized exercise plan with provider"}
+            ]
+          }
+        ]
+      },
+      "request": {"method": "POST", "url": "PlanDefinition", "ifNoneExist": "name=pin-chf"}
+    },
+    {
+      "resource": {
+        "resourceType": "PlanDefinition",
+        "status": "active",
+        "name": "pin-diabetes",
+        "title": "PIN - Diabetes Management",
+        "description": "Principal Illness Navigation care plan for diabetes patients.",
+        "type": {"coding": [{"code": "clinical-protocol"}]},
+        "action": [
+          {
+            "title": "A1C below 7%",
+            "description": "Goal: Reduce A1C to below 7%. Duration: 6 months.",
+            "priority": "urgent",
+            "action": [
+              {"title": "Glucose monitoring education", "description": "Intervention: Teach daily glucose monitoring"},
+              {"title": "Endocrinology referral", "description": "Intervention: Schedule specialist visit"}
+            ]
+          },
+          {
+            "title": "BMI 18.5-24.9 (healthy range)",
+            "description": "Goal: Achieve and maintain healthy BMI. Duration: 12 months.",
+            "priority": "routine",
+            "action": [
+              {"title": "Nutrition counseling", "description": "Intervention: Weekly nutrition sessions"},
+              {"title": "Weight tracking", "description": "Intervention: Monthly weigh-ins at clinic"}
+            ]
+          },
+          {
+            "title": "Daily glucose self-monitoring",
+            "description": "Goal: Patient monitors blood glucose 2x daily. Duration: ongoing.",
+            "priority": "urgent",
+            "action": [
+              {"title": "Glucometer training", "description": "Intervention: Train patient on device use"},
+              {"title": "Supply coordination", "description": "Intervention: Ensure test strip coverage"}
+            ]
+          }
+        ]
+      },
+      "request": {"method": "POST", "url": "PlanDefinition", "ifNoneExist": "name=pin-diabetes"}
+    }
+  ]
+}
