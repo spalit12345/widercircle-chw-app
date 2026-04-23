@@ -12,6 +12,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createBrowserRouter } from 'react-router';
 import { App } from './App';
+import { TimerProvider } from './billing/TimerContext';
 
 const medplum = new MedplumClient({
   onUnauthenticated: () => (window.location.href = '/'),
@@ -50,7 +51,9 @@ root.render(
     <MedplumProvider medplum={medplum} navigate={navigate}>
       <MantineProvider theme={theme}>
         <Notifications position="bottom-right" />
-        <RouterProvider router={router} />
+        <TimerProvider>
+          <RouterProvider router={router} />
+        </TimerProvider>
       </MantineProvider>
     </MedplumProvider>
   </StrictMode>

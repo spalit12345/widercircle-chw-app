@@ -1,0 +1,22 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:practitioner-pcp-smith",
+      "resource": {
+        "resourceType": "Practitioner",
+        "identifier": [{ "system": "http://medplum.com/hackathon", "value": "pcp-smith" }],
+        "name": [{ "given": ["Robert"], "family": "Smith", "prefix": ["Dr."] }],
+        "telecom": [{ "system": "phone", "value": "555-0300", "use": "work" }],
+        "qualification": [{
+          "code": {
+            "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/v2-0360", "code": "MD", "display": "Doctor of Medicine" }],
+            "text": "Doctor of Medicine"
+          }
+        }]
+      },
+      "request": { "method": "POST", "url": "Practitioner", "ifNoneExist": "identifier=http://medplum.com/hackathon|pcp-smith" }
+    }
+  ]
+}

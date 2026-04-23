@@ -56,6 +56,11 @@ export function getPatientPageTabs(membership: ProjectMembership | undefined): P
 
 export const PatientPageTabs: PatientPageTabInfo[] = [
   { id: 'timeline', url: '', label: 'Timeline' },
+  { id: 'careplan', url: 'careplan', label: 'Care Plan' },
+  { id: 'billing', url: 'billing', label: 'Billing' },
+  { id: 'consents', url: 'consents', label: 'Consents' },
+  { id: 'assessments', url: 'assessments', label: 'Assessments' },
+  { id: 'appointments', url: 'appointments', label: 'Appointments' },
   { id: 'edit', url: 'edit', label: 'Edit' },
   {
     id: 'encounter',
@@ -88,11 +93,6 @@ export const PatientPageTabs: PatientPageTabInfo[] = [
     id: 'documentreference',
     url: 'DocumentReference?subject=%patient.id',
     label: 'Documents',
-  },
-  {
-    id: 'careplan',
-    url: 'CarePlan?_fields=_lastUpdated,status,intent,category,period&_sort=-_lastUpdated&patient=%patient.id',
-    label: 'Care Plans',
   },
   { id: 'message', url: 'Communication', label: 'Messages' },
   { id: 'export', url: 'export', label: 'Export' },

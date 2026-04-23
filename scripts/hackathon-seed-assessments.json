@@ -1,0 +1,81 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Questionnaire",
+        "status": "active",
+        "name": "prapare-sdoh-screening",
+        "title": "PRAPARE SDoH Screening",
+        "description": "Protocol for Responding to and Assessing Patients' Assets, Risks, and Experiences — a standardized social determinants of health screening tool.",
+        "item": [
+          {
+            "linkId": "housing",
+            "text": "What is your housing situation today?",
+            "type": "choice",
+            "required": true,
+            "answerOption": [
+              { "valueCoding": { "code": "stable", "display": "I have housing" } },
+              { "valueCoding": { "code": "at-risk", "display": "I have housing but am worried about losing it" } },
+              { "valueCoding": { "code": "unstable", "display": "I do not have steady housing" } }
+            ]
+          },
+          {
+            "linkId": "food",
+            "text": "Within the past 12 months, you worried that your food would run out before you got money to buy more.",
+            "type": "choice",
+            "required": true,
+            "answerOption": [
+              { "valueCoding": { "code": "often", "display": "Often true" } },
+              { "valueCoding": { "code": "sometimes", "display": "Sometimes true" } },
+              { "valueCoding": { "code": "never", "display": "Never true" } }
+            ]
+          },
+          {
+            "linkId": "transportation",
+            "text": "In the past 12 months, has lack of reliable transportation kept you from medical appointments or getting medications?",
+            "type": "choice",
+            "required": true,
+            "answerOption": [
+              { "valueCoding": { "code": "yes-medical", "display": "Yes, it has kept me from medical appointments or getting medications" } },
+              { "valueCoding": { "code": "yes-nonmedical", "display": "Yes, it has kept me from non-medical activities (work, meetings)" } },
+              { "valueCoding": { "code": "no", "display": "No" } }
+            ]
+          },
+          {
+            "linkId": "stress",
+            "text": "Stress is when someone feels tense, nervous, anxious, or can't sleep at night because their mind is troubled. How stressed are you?",
+            "type": "choice",
+            "required": true,
+            "answerOption": [
+              { "valueCoding": { "code": "not-at-all", "display": "Not at all" } },
+              { "valueCoding": { "code": "a-little", "display": "A little bit" } },
+              { "valueCoding": { "code": "somewhat", "display": "Somewhat" } },
+              { "valueCoding": { "code": "quite-a-bit", "display": "Quite a bit" } },
+              { "valueCoding": { "code": "very-much", "display": "Very much" } }
+            ]
+          },
+          {
+            "linkId": "safety",
+            "text": "Do you feel physically and emotionally safe where you currently live?",
+            "type": "choice",
+            "required": true,
+            "answerOption": [
+              { "valueCoding": { "code": "yes", "display": "Yes" } },
+              { "valueCoding": { "code": "no", "display": "No" } },
+              { "valueCoding": { "code": "unsure", "display": "Unsure" } }
+            ]
+          },
+          {
+            "linkId": "notes",
+            "text": "Additional notes or observations",
+            "type": "text",
+            "required": false
+          }
+        ]
+      },
+      "request": { "method": "POST", "url": "Questionnaire", "ifNoneExist": "name=prapare-sdoh-screening" }
+    }
+  ]
+}

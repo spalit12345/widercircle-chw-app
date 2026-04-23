@@ -1,0 +1,87 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "ValueSet",
+        "status": "active",
+        "name": "activity-types",
+        "title": "CHW Activity Types",
+        "compose": {
+          "include": [{
+            "system": "http://medplum.com/activity-type",
+            "concept": [
+              {"code": "outreach", "display": "Outreach"},
+              {"code": "coordination", "display": "Coordination Work"},
+              {"code": "navigation", "display": "Services Navigation"},
+              {"code": "direct-contact", "display": "Direct Patient Contact"},
+              {"code": "care-plan-review", "display": "Care Plan Review"},
+              {"code": "documentation", "display": "Documentation"}
+            ]
+          }]
+        }
+      },
+      "request": {"method": "POST", "url": "ValueSet", "ifNoneExist": "name=activity-types"}
+    },
+    {
+      "resource": {
+        "resourceType": "ValueSet",
+        "status": "active",
+        "name": "billing-programs",
+        "title": "Billing Programs",
+        "compose": {
+          "include": [{
+            "system": "http://medplum.com/program",
+            "concept": [
+              {"code": "CHI", "display": "CHI - Community Health Integration"},
+              {"code": "PIN", "display": "PIN - Principal Illness Navigation"},
+              {"code": "CCM", "display": "CCM - Chronic Care Management"}
+            ]
+          }]
+        }
+      },
+      "request": {"method": "POST", "url": "ValueSet", "ifNoneExist": "name=billing-programs"}
+    },
+    {
+      "resource": {
+        "resourceType": "ValueSet",
+        "status": "active",
+        "name": "consent-categories",
+        "title": "Consent Form Categories",
+        "compose": {
+          "include": [{
+            "system": "http://medplum.com/consent-category",
+            "concept": [
+              {"code": "hipaa", "display": "HIPAA Privacy Notice", "designation": [{"value": "required"}]},
+              {"code": "telehealth", "display": "Telehealth Consent", "designation": [{"value": "required"}]},
+              {"code": "release-of-info", "display": "Release of Information", "designation": [{"value": "optional"}]}
+            ]
+          }]
+        }
+      },
+      "request": {"method": "POST", "url": "ValueSet", "ifNoneExist": "name=consent-categories"}
+    },
+    {
+      "resource": {
+        "resourceType": "ValueSet",
+        "status": "active",
+        "name": "cpt-billing-codes",
+        "title": "CPT Billing Codes",
+        "compose": {
+          "include": [{
+            "system": "http://www.ama-assn.org/go/cpt",
+            "concept": [
+              {"code": "G0019", "display": "G0019 - CHI Initial 60 min/month", "designation": [{"value": "60"}]},
+              {"code": "G0022", "display": "G0022 - CHI Each additional 30 min", "designation": [{"value": "30"}]},
+              {"code": "G0023", "display": "G0023 - PIN Initial 60 min/month", "designation": [{"value": "60"}]},
+              {"code": "G0024", "display": "G0024 - PIN Each additional 30 min", "designation": [{"value": "30"}]},
+              {"code": "G0136", "display": "G0136 - SDoH Assessment", "designation": [{"value": "0"}]}
+            ]
+          }]
+        }
+      },
+      "request": {"method": "POST", "url": "ValueSet", "ifNoneExist": "name=cpt-billing-codes"}
+    }
+  ]
+}
