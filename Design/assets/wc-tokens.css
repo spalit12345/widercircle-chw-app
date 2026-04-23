@@ -1,0 +1,195 @@
+/* Wider Circle — Colors & Type tokens
+ * Derived from Unified_WC_DS figma file.
+ * Typography: Montserrat (display), Inter (body), Noto Sans & Azeret Mono (accents).
+ */
+
+/* -----------------------------------------------------------------
+ * FONTS — Montserrat loaded locally from /fonts, Inter from Google
+ * (Inter remains web-served until brand-approved files land.)
+ * ---------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@500;600&family=Azeret+Mono:wght@500&family=Montserrat:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* ============================================================
+   * BASE (NEUTRAL) SCALE — the grayscale spine
+   * ============================================================ */
+  --wc-base-0:    #FFFFFF;
+  --wc-base-50:   #FAFAF8;  /* page-secondary / subtle surface */
+  --wc-base-100:  #F1F1EE;
+  --wc-base-200:  #E3E3DF;  /* hairline / borders */
+  --wc-base-300:  #D0D0CD;
+  --wc-base-400:  #BCBCBA;  /* disabled fill */
+  --wc-base-500:  #868685;  /* disabled text / stroke */
+  --wc-base-600:  #504F51;  /* body on dark */
+  --wc-base-700:  #1A191B;  /* primary surface / text */
+  --wc-base-800:  #141019;  /* near-black text */
+  --wc-base-900:  #000000;
+
+  /* ============================================================
+   * BRAND — Wider Circle gold/orange (the "W" ribbon)
+   * ============================================================ */
+  --wc-brand-900: #7D0C05;  /* deepest */
+  --wc-brand-800: #D1190D;
+  --wc-brand-700: #EF4E23;  /* vermilion accent */
+  --wc-brand-600: #F05723;
+  --wc-brand-500: #F27321;  /* primary orange */
+  --wc-brand-400: #F58B1F;  /* mid orange */
+  --wc-brand-300: #F89C1E;
+  --wc-brand-200: #FCB713;  /* gold — logo highlight */
+  --wc-brand-100: #FEC722;
+  --wc-brand-50:  #FCB820;
+
+  /* Light / tinted */
+  --wc-tint-500:  #FCB820;
+  --wc-tint-400:  #FCB820;
+  --wc-tint-300:  #FFD5D3;  /* soft peach tint */
+  --wc-tint-200:  #FFEFD9;
+  --wc-tint-100:  #FFF5E8;
+
+  /* ============================================================
+   * SEMANTIC — error / warning / success / informative
+   * ============================================================ */
+  --wc-error-900:  #4A0400;
+  --wc-error-800:  #7D0C05;
+  --wc-error-700:  #D1190D;
+  --wc-error-500:  #FF1F0F;
+  --wc-error-400:  #FF8E87;
+  --wc-error-300:  #FFD5D3;
+  --wc-error-100:  #FFE4E1;
+
+  --wc-warning-900: #281F00;
+  --wc-warning-800: #614700;
+  --wc-warning-700: #9A7400;
+  --wc-warning-500: #F89C1C;
+  --wc-warning-400: #F7C868;
+  --wc-warning-300: #FCD923;
+  --wc-warning-100: #FFEFD9;
+
+  --wc-success-900: #00251A;
+  --wc-success-800: #003A2C;
+  --wc-success-700: #0A6E54;
+  --wc-success-500: #10B981;
+  --wc-success-400: #6DD7B1;
+  --wc-success-300: #AFE8D1;
+  --wc-success-100: #D5F3E6;
+
+  --wc-info-900:   #081C2A;
+  --wc-info-800:   #0B3A5B;
+  --wc-info-700:   #105F86;
+  --wc-info-500:   #2CA2DA;
+  --wc-info-400:   #95D1ED;
+  --wc-info-300:   #D2ECF9;
+  --wc-info-100:   #E9F5FD;
+
+  /* ============================================================
+   * SEMANTIC SURFACE TOKENS
+   * ============================================================ */
+  --wc-surface-primary:          var(--wc-base-0);
+  --wc-surface-secondary:        var(--wc-base-50);
+  --wc-surface-page:             var(--wc-base-0);
+  --wc-surface-page-secondary:   var(--wc-base-50);
+  --wc-surface-inverse:          var(--wc-base-700);
+  --wc-surface-disabled:         var(--wc-base-300);
+
+  --wc-interactive-primary:        var(--wc-base-700);
+  --wc-interactive-primary-hover:  var(--wc-base-600);
+  --wc-interactive-primary-subtle: var(--wc-base-100);
+
+  --wc-interactive-brand:        var(--wc-brand-500);
+  --wc-interactive-brand-hover:  var(--wc-brand-600);
+  --wc-interactive-brand-subtle: var(--wc-tint-100);
+
+  --wc-border-default:   var(--wc-base-200);
+  --wc-border-strong:    var(--wc-base-300);
+  --wc-border-inverse:   var(--wc-base-500);
+
+  /* ============================================================
+   * TEXT TOKENS
+   * ============================================================ */
+  --wc-text-primary:           var(--wc-base-900);
+  --wc-text-primary-hover:     var(--wc-base-600);
+  --wc-text-on-color:          var(--wc-base-0);
+  --wc-text-on-color-subtle:   var(--wc-base-100);
+  --wc-text-secondary:         var(--wc-base-600);
+  --wc-text-secondary-hover:   var(--wc-base-700);
+  --wc-text-placeholder:       var(--wc-base-500);
+  --wc-text-disabled:          var(--wc-base-400);
+  --wc-text-link:              #8D6CEF;
+  --wc-text-brand:             var(--wc-brand-500);
+  --wc-text-error:             var(--wc-error-700);
+  --wc-text-success:           var(--wc-success-700);
+  --wc-text-warning:           var(--wc-warning-700);
+
+  /* ============================================================
+   * TYPOGRAPHY — families & scale
+   * ============================================================ */
+  --wc-font-display: 'Montserrat', 'Open Sans', system-ui, -apple-system, sans-serif;
+  --wc-font-body:    'Inter', 'Noto Sans', system-ui, -apple-system, sans-serif;
+  --wc-font-mono:    'Azeret Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Headings (Montserrat) — from Fonts spec in the .fig */
+  --wc-h1-size: 24px;  --wc-h1-lh: 34px;  --wc-h1-weight: 700;
+  --wc-h2a-size:19px;  --wc-h2a-lh:28px;  --wc-h2a-weight:700;
+  --wc-h2b-size:19px;  --wc-h2b-lh:28px;  --wc-h2b-weight:600;
+  --wc-h3a-size:16px;  --wc-h3a-lh:26px;  --wc-h3a-weight:700;
+  --wc-h3b-size:16px;  --wc-h3b-lh:26px;  --wc-h3b-weight:600;
+  --wc-h4-size:14px;   --wc-h4-lh:24px;   --wc-h4-weight:700;
+
+  /* Body / links (Inter) */
+  --wc-p1-size:17px;   --wc-p1-lh:25px;
+  --wc-p2-size:16px;   --wc-p2-lh:23px;
+  --wc-p3-size:15px;   --wc-p3-lh:20px;
+  --wc-p4a-size:13px;  --wc-p4a-lh:16px;
+  --wc-p4b-size:13px;  --wc-p4b-lh:16px;   /* regular */
+
+  /* ============================================================
+   * RADII / SHADOWS / SPACING
+   * ============================================================ */
+  --wc-radius-xs: 4px;
+  --wc-radius-sm: 8px;
+  --wc-radius-md: 12px;
+  --wc-radius-lg: 15px;   /* button radius from Figma */
+  --wc-radius-xl: 20px;   /* card radius from Figma */
+  --wc-radius-2xl:30px;   /* pill */
+  --wc-radius-full:9999px;
+
+  --wc-shadow-xs: 0 1px 1px 0 rgba(0,0,0,0.06);
+  --wc-shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.08);
+  --wc-shadow-md: 0 4px 12px -2px rgba(26,25,27,0.10);
+  --wc-shadow-lg: 0 12px 32px -8px rgba(26,25,27,0.18);
+  --wc-shadow-ornament: 0 1px 1px 0 rgba(0,0,0,0.15); /* matches Figma ellipses */
+
+  --wc-space-1: 4px;
+  --wc-space-2: 8px;
+  --wc-space-3: 10px;  /* 10px gap is pervasive in .fig */
+  --wc-space-4: 12px;
+  --wc-space-5: 16px;
+  --wc-space-6: 20px;
+  --wc-space-7: 24px;
+  --wc-space-8: 32px;
+  --wc-space-10:48px;
+  --wc-space-12:64px;
+}
+
+/* ================================================================
+ * SEMANTIC TYPE CLASSES
+ * ================================================================ */
+html, body { font-family: var(--wc-font-body); color: var(--wc-text-primary); background: var(--wc-surface-page); }
+
+.wc-h1 { font-family: var(--wc-font-display); font-weight: var(--wc-h1-weight); font-size: var(--wc-h1-size); line-height: var(--wc-h1-lh); letter-spacing: -0.01em; }
+.wc-h2 { font-family: var(--wc-font-display); font-weight: var(--wc-h2a-weight); font-size: var(--wc-h2a-size); line-height: var(--wc-h2a-lh); }
+.wc-h2-list { font-family: var(--wc-font-display); font-weight: var(--wc-h2b-weight); font-size: var(--wc-h2b-size); line-height: var(--wc-h2b-lh); }
+.wc-h3 { font-family: var(--wc-font-display); font-weight: var(--wc-h3a-weight); font-size: var(--wc-h3a-size); line-height: var(--wc-h3a-lh); }
+.wc-h3-input { font-family: var(--wc-font-display); font-weight: var(--wc-h3b-weight); font-size: var(--wc-h3b-size); line-height: var(--wc-h3b-lh); }
+.wc-h4 { font-family: var(--wc-font-display); font-weight: var(--wc-h4-weight); font-size: var(--wc-h4-size); line-height: var(--wc-h4-lh); }
+
+.wc-p1 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p1-size); line-height: var(--wc-p1-lh); }
+.wc-p2 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p2-size); line-height: var(--wc-p2-lh); }
+.wc-p3 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p3-size); line-height: var(--wc-p3-lh); }
+.wc-l1 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p3-size); line-height: var(--wc-p3-lh); color: var(--wc-text-link); }
+.wc-l2 { font-family: var(--wc-font-body); font-weight: 500; font-size: 13px; line-height: 16px; color: var(--wc-text-link); }
+.wc-p4 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p4a-size); line-height: var(--wc-p4a-lh); }
+.wc-p4-light { font-family: var(--wc-font-body); font-weight: 400; font-size: var(--wc-p4b-size); line-height: var(--wc-p4b-lh); }
+
+.wc-caption { font-family: var(--wc-font-body); font-weight: 500; font-size: 13px; line-height: 16px; color: var(--wc-text-secondary); }
+.wc-mono { font-family: var(--wc-font-mono); font-weight: 500; }

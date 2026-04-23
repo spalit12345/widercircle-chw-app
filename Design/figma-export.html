@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WC CMS — Figma export index</title>
+<link rel="stylesheet" href="assets/wc-tokens.css">
+<style>
+  body { margin:0; padding:40px; font-family: var(--wc-font-body); background: var(--wc-base-50); color: var(--wc-base-700); }
+  h1 { font-family: 'Montserrat', sans-serif; font-weight:700; margin:0 0 8px;}
+  .sub { color: var(--wc-base-500); margin-bottom: 28px; max-width: 680px; line-height:1.55;}
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:14px; max-width: 1200px;}
+  .card { background:#fff; border:1px solid var(--wc-base-200); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:6px;}
+  .card h3 { margin:0; font-family:'Montserrat'; font-size:15px; font-weight:700;}
+  .card p { margin:0; font-size:13px; color: var(--wc-base-500); line-height:1.45;}
+  .card a { display:inline-flex; align-items:center; gap:6px; margin-top: 8px; font-size:13px; font-weight:600; color: var(--wc-brand-600); text-decoration:none; font-family: 'Azeret Mono', monospace; word-break: break-all;}
+  .card a:hover { text-decoration:underline;}
+  .meta { font-family:'Azeret Mono', monospace; font-size:11px; color: var(--wc-base-500); }
+  section { margin-bottom: 36px;}
+  section h2 { font-family:'Montserrat'; font-size:18px; margin:0 0 14px;}
+  .steps { background:#fff; border:1px solid var(--wc-base-200); border-radius:16px; padding:20px 24px; max-width: 900px; margin-bottom: 32px;}
+  .steps ol { margin:0; padding-left:20px; }
+  .steps li { margin:6px 0; line-height:1.55; font-size: 14px;}
+  code { background: var(--wc-base-100); padding: 2px 6px; border-radius:4px; font-family:'Azeret Mono', monospace; font-size: 12px;}
+</style>
+</head>
+<body>
+<h1>Figma export — Wider Circle CMS</h1>
+<p class="sub">Each link below renders one screen at a fixed 1440&nbsp;px width, plugin-ready. Recommended flow: <strong>html.to.design</strong> (inside Figma) → paste any URL → Import. Variants let you capture key states of the same screen.</p>
+
+<div class="steps">
+  <strong>How to import to Figma</strong>
+  <ol>
+    <li>In Figma, install the <code>html.to.design</code> plugin (free tier works for single screens).</li>
+    <li>Open a Figma file, run the plugin, choose <em>Import from URL</em>.</li>
+    <li>Copy one of the links below (right-click → Copy link), paste it in, click Import.</li>
+    <li>Each screen lands as a frame with nested layers — auto-layout, colors, and text styles mostly preserved.</li>
+    <li>Repeat for every variant. Group them into pages in Figma (e.g. <em>Patient 360 / variants</em>).</li>
+  </ol>
+</div>
+
+<section>
+  <h2>Patient 360 — member workspace</h2>
+  <div class="grid">
+    <div class="card"><h3>Default · complex member · left sticky panel</h3><p>Dolores Alvarez · Tier 4 · Overview tab</p><a href="export.html?screen=patient360&persona=complex&layout=left">export.html?screen=patient360&persona=complex&layout=left</a></div>
+    <div class="card"><h3>Top sticky header variant</h3><p>Same content, header layout changed</p><a href="export.html?screen=patient360&persona=complex&layout=top">export.html?screen=patient360&layout=top</a></div>
+    <div class="card"><h3>Engaged member</h3><p>Robert Chen · Tier 2</p><a href="export.html?screen=patient360&persona=engaged&layout=left">export.html?screen=patient360&persona=engaged</a></div>
+    <div class="card"><h3>Prospective / new member</h3><p>Janet Whitfield · welcome state</p><a href="export.html?screen=patient360&persona=prospective&layout=left">export.html?screen=patient360&persona=prospective</a></div>
+    <div class="card"><h3>Priority: numeric scores only</h3><p>Case list shows numeric score instead of badges</p><a href="export.html?screen=patient360&persona=complex&priority=score">priority=score</a></div>
+    <div class="card"><h3>Activity feed — tabbed-by-channel variant</h3><p>Best captured standalone for plugin</p><a href="export.html?screen=patient360&persona=complex&feed=tabbed">feed=tabbed</a></div>
+    <div class="card"><h3>Compact density</h3><p>For dense-info audiences</p><a href="export.html?screen=patient360&persona=complex&density=compact">density=compact</a></div>
+  </div>
+</section>
+
+<section>
+  <h2>Call flows</h2>
+  <div class="grid">
+    <div class="card"><h3>Inbound screen-pop</h3><p>ANI match overlay before answering</p><a href="export.html?screen=patient360&persona=complex&pop=1">pop=1</a></div>
+    <div class="card"><h3>Active call dock + notes</h3><p>Persistent bottom bar, notes side panel open</p><a href="export.html?screen=patient360&persona=complex&call=1&notes=1">call=1&notes=1</a></div>
+    <div class="card"><h3>Active call dock only (no notes)</h3><p>Minimal call state</p><a href="export.html?screen=patient360&persona=complex&call=1">call=1</a></div>
+  </div>
+</section>
+
+<section>
+  <h2>Modals</h2>
+  <div class="grid">
+    <div class="card"><h3>Case intake</h3><p>New-case modal with duplicate check</p><a href="export.html?screen=patient360&persona=complex&intake=1">intake=1</a></div>
+    <div class="card"><h3>Schedule appointment</h3><p>On-behalf-of scheduling modal</p><a href="export.html?screen=patient360&persona=complex&schedule=1">schedule=1</a></div>
+  </div>
+</section>
+
+<section>
+  <h2>Other pages</h2>
+  <div class="grid">
+    <div class="card"><h3>My Queue</h3><p>Prioritized case inbox, KPIs</p><a href="export.html?screen=queue">screen=queue</a></div>
+    <div class="card"><h3>Events roster</h3><p>Bulk-select, predictive RSVPs</p><a href="export.html?screen=events">screen=events</a></div>
+    <div class="card"><h3>Billing & time tracking</h3><p>CPT sync status, Candid/Bridge</p><a href="export.html?screen=billing">screen=billing</a></div>
+  </div>
+</section>
+
+<section>
+  <h2>Notes for plugin import</h2>
+  <div class="steps">
+    <ul style="margin:0; padding-left:20px; line-height:1.6; font-size:14px;">
+      <li>Each URL renders at exactly <strong>1440&nbsp;px</strong> wide.</li>
+      <li>Modals/overlays use <code>position:fixed</code> — plugins typically flatten these into the top of the frame. Crop/position in Figma after import.</li>
+      <li>Fonts (<em>Montserrat</em>, <em>Inter</em>, <em>Azeret Mono</em>) load from Google Fonts; Figma will map them to the same family names if installed locally.</li>
+      <li>Colors and radii come from CSS variables — importers that support variables may pick these up automatically; otherwise you'll get literal hex values.</li>
+      <li>After import, promote repeated elements (Badge, Button, Avatar, CaseRow, Timeline item) to Figma components to get a proper library.</li>
+    </ul>
+  </div>
+</section>
+</body>
+</html>
