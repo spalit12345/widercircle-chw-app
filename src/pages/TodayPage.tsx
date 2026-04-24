@@ -34,7 +34,16 @@ const PRIORITY_COLOR: Record<string, string> = {
   routine: 'blue',
 };
 
-const todayISO = (): string => new Date().toISOString().split('T')[0] as string;
+// Use local calendar date (not UTC) — FHIR due dates are authored in the user's local
+// calendar, so a 9pm PT task saved as 2026-04-24 must still count as "today" at 9pm PT
+// even though UTC already rolled over.
+const todayISO = (): string => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 const appointmentTime = (appt: Appointment): string => {
   if (!appt.start) {
@@ -297,7 +306,7 @@ export function TodayPage(): JSX.Element {
                   <Stack gap="xs">
                     {scheduleToday.map((appt) => {
                       const patient = appt.participant?.find((p) =>
-                        p.actor?.reference?.startsWith('Patient')
+                        p.actor?.reference?.startsWith('Patient/')
                       );
                       const patientId = patient?.actor?.reference?.replace('Patient/', '');
                       const type = appt.appointmentType?.coding?.[0]?.code ?? appt.appointmentType?.text ?? '—';
@@ -409,9 +418,11 @@ export function TodayPage(): JSX.Element {
           />
           <Select
             label="Priority"
+            // FHIR ordering (ascending): routine < urgent < asap < stat.
+            // Label → value must preserve that ordering so SLA rules and sorts stay sane.
             data={[
-              { value: 'urgent', label: 'High' },
-              { value: 'asap', label: 'Medium' },
+              { value: 'asap', label: 'High' },
+              { value: 'urgent', label: 'Medium' },
               { value: 'routine', label: 'Low' },
             ]}
             value={formPriority}
