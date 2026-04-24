@@ -169,6 +169,19 @@ export function ConsentCapturePage(): JSX.Element {
           },
         ],
         patient: { reference: `Patient/${selectedPatient}`, display: patientLabel },
+        // ppc-1: Consent requires either .policy or .policyRule. We anchor to a
+        // WiderCircle-internal canonical policy URL that references the
+        // telehealth+CHI attestation language (script version lives in the
+        // extension + sourceAttachment).
+        policyRule: {
+          coding: [
+            {
+              system: 'https://widercircle.com/fhir/CodeSystem/consent-policy',
+              code: CONSENT_CATEGORY_CODE,
+              display: 'Telehealth + CHI attestation policy (v1)',
+            },
+          ],
+        },
         dateTime: signedAt,
         performer: practitionerRef
           ? [{ reference: practitionerRef, display: practitionerLabel }]
