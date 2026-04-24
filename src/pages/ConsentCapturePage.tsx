@@ -52,6 +52,15 @@ export const evaluateConsentStatus = (consents: Consent[], now: number = Date.no
   return { state: 'on-file', latest, expiresOn };
 };
 
+export const utf8ToBase64 = (text: string): string => {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+};
+
 export const consentMethod = (consent: Consent | undefined): 'esig' | 'verbal' | 'unknown' => {
   const method = consent?.extension?.find(
     (e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/consent-method'
@@ -169,7 +178,9 @@ export function ConsentCapturePage(): JSX.Element {
             ? {
                 contentType: 'text/plain',
                 title: `Verbal attestation — ${CONSENT_SCRIPT_VERSION}`,
-                data: btoa(
+                // The script contains em-dashes; btoa only handles Latin-1 so we go
+                // UTF-8 → bytes → base64 via TextEncoder to avoid InvalidCharacterError.
+                data: utf8ToBase64(
                   `Script version: ${CONSENT_SCRIPT_VERSION}\nAttested by: ${practitionerLabel}\nTimestamp: ${signedAt}\nScript:\n${CONSENT_SCRIPT_TEXT}`
                 ),
               }
