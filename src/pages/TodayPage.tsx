@@ -150,23 +150,32 @@ export function TodayPage(): JSX.Element {
     if (!formTitle.trim() || !practitionerRef) {
       return;
     }
+    // Close the modal immediately so the user doesn't stare at the form during the
+    // network round trip. The create then runs in the background; success shows a
+    // toast and refreshes, failure shows an error toast (form data is lost, same as
+    // any optimistic-UI tradeoff — acceptable for a manual task with no heavy payload).
+    const payload: Task = {
+      resourceType: 'Task',
+      status: 'requested',
+      intent: 'order',
+      priority: formPriority,
+      code: { text: formTitle.trim() },
+      description: formDescription.trim() || undefined,
+      for: formPatient
+        ? {
+            reference: `Patient/${formPatient}`,
+            display: patients.find((p) => p.value === formPatient)?.label ?? '',
+          }
+        : undefined,
+      owner: { reference: practitionerRef, display: practitionerName },
+      restriction: formDueDate ? { period: { end: formDueDate } } : undefined,
+      authoredOn: new Date().toISOString(),
+    };
+    closeModal();
+    resetForm();
     try {
-      const patientLabel = patients.find((p) => p.value === formPatient)?.label ?? '';
-      await medplum.createResource<Task>({
-        resourceType: 'Task',
-        status: 'requested',
-        intent: 'order',
-        priority: formPriority,
-        code: { text: formTitle.trim() },
-        description: formDescription.trim() || undefined,
-        for: formPatient ? { reference: `Patient/${formPatient}`, display: patientLabel } : undefined,
-        owner: { reference: practitionerRef, display: practitionerName },
-        restriction: formDueDate ? { period: { end: formDueDate } } : undefined,
-        authoredOn: new Date().toISOString(),
-      });
+      await medplum.createResource<Task>(payload);
       showNotification({ color: 'green', message: 'Task created' });
-      closeModal();
-      resetForm();
       await fetchEverything();
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
