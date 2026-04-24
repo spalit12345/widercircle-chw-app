@@ -1,0 +1,1 @@
+# CD-15 evidence placeholder — unit tests cover load-bearing state machine (isPlanLocked, nextCycle, latestReviewState). Interactive GIF deferred to next session due to expired auth in this loop iteration.
