@@ -15,7 +15,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
-import { formatDate, formatDateTime, normalizeErrorString } from '@medplum/core';
+import { formatDate, formatDateTime, normalizeErrorString, resolveId } from '@medplum/core';
 import type {
   AllergyIntolerance,
   CarePlan,
@@ -105,30 +105,35 @@ export function PreVisitPage(): JSX.Element {
     setLoading(true);
     setError(undefined);
     try {
+      // Encounter is the one required read — without it, there is no chart.
       const encounter = await medplum.readResource('Encounter', encounterId);
-      const patientRef = encounter.subject?.reference;
-      const patientId = patientRef?.replace('Patient/', '');
+      const patientId = resolveId(encounter.subject);
       const patientSearch = `patient=Patient/${patientId}`;
 
+      // Per CD-07 §API: "Each section independently fetchable (partial-data resilience)".
+      // We catch per-promise so one failing FHIR search doesn't blank the whole chart;
+      // the affected section just falls back to its empty state.
       const [patient, carePlans, medications, allergies, conditions, recentEncounters, eligibility] = await Promise.all([
         patientId ? medplum.readResource('Patient', patientId).catch(() => undefined) : Promise.resolve(undefined),
         patientId
-          ? medplum.searchResources('CarePlan', `${patientSearch}&status=active&_count=5&_sort=-_lastUpdated`)
+          ? medplum.searchResources('CarePlan', `${patientSearch}&status=active&_count=5&_sort=-_lastUpdated`).catch(() => [])
           : Promise.resolve([]),
         patientId
-          ? medplum.searchResources('MedicationRequest', `${patientSearch}&status=active&_count=10`)
+          ? medplum.searchResources('MedicationRequest', `${patientSearch}&status=active&_count=10`).catch(() => [])
           : Promise.resolve([]),
         patientId
-          ? medplum.searchResources('AllergyIntolerance', `${patientSearch}&_count=10`)
+          ? medplum.searchResources('AllergyIntolerance', `${patientSearch}&_count=10`).catch(() => [])
           : Promise.resolve([]),
         patientId
-          ? medplum.searchResources('Condition', `${patientSearch}&clinical-status=active&_count=10`)
+          ? medplum.searchResources('Condition', `${patientSearch}&clinical-status=active&_count=10`).catch(() => [])
           : Promise.resolve([]),
         patientId
-          ? medplum.searchResources('Encounter', `${patientSearch}&_count=3&_sort=-date`)
+          ? medplum.searchResources('Encounter', `${patientSearch}&_count=3&_sort=-date`).catch(() => [])
           : Promise.resolve([]),
         patientId
-          ? medplum.searchResources('CoverageEligibilityResponse', `${patientSearch}&_count=1&_sort=-_lastUpdated`)
+          ? medplum
+              .searchResources('CoverageEligibilityResponse', `${patientSearch}&_count=1&_sort=-_lastUpdated`)
+              .catch(() => [])
           : Promise.resolve([]),
       ]);
 
@@ -163,9 +168,10 @@ export function PreVisitPage(): JSX.Element {
 
   const onLaunch = (): void => {
     // CD-06 takes over from here. For this read-only view we navigate to the
-    // existing encounter chart route where authoring is available.
-    if (bundle) {
-      navigate(`/Patient/${bundle.patient?.id ?? ''}/Encounter/${bundle.encounter.id ?? ''}`);
+    // existing encounter chart route where authoring is available. Guard against
+    // missing IDs so we never produce a malformed URL like /Patient//Encounter/.
+    if (bundle?.patient?.id && bundle.encounter.id) {
+      navigate(`/Patient/${bundle.patient.id}/Encounter/${bundle.encounter.id}`);
     }
   };
 
@@ -218,24 +224,34 @@ export function PreVisitPage(): JSX.Element {
                 }
                 withArrow
               >
-                <Button
-                  leftSection={<IconPhone size={16} />}
-                  disabled={!launchable}
-                  onClick={onLaunch}
-                  color="blue"
-                  size="md"
-                  aria-label="Launch visit"
-                >
-                  Launch visit
-                </Button>
+                {/* Mantine Tooltip skips disabled buttons; wrap in a focusable span so the
+                    tooltip still fires when the gate has the button disabled. */}
+                <span tabIndex={launchable ? -1 : 0} style={{ display: 'inline-flex' }}>
+                  <Button
+                    leftSection={<IconPhone size={16} />}
+                    disabled={!launchable}
+                    onClick={onLaunch}
+                    color="blue"
+                    size="md"
+                    aria-label="Launch visit"
+                  >
+                    Launch visit
+                  </Button>
+                </span>
               </Tooltip>
-              <Button variant="light" leftSection={<IconFileText size={16} />} disabled>
-                Capture consent
-              </Button>
+              <Tooltip label="Consent capture (CD-05) lands separately" withArrow>
+                <span tabIndex={0} style={{ display: 'inline-flex' }}>
+                  <Button variant="light" leftSection={<IconFileText size={16} />} disabled>
+                    Capture consent
+                  </Button>
+                </span>
+              </Tooltip>
               <Tooltip label="Edit Plan unlocks when the visit starts" withArrow>
-                <Button variant="light" leftSection={<IconFileText size={16} />} disabled>
-                  Edit plan
-                </Button>
+                <span tabIndex={0} style={{ display: 'inline-flex' }}>
+                  <Button variant="light" leftSection={<IconFileText size={16} />} disabled>
+                    Edit plan
+                  </Button>
+                </span>
               </Tooltip>
             </Group>
           </Group>
@@ -391,21 +407,32 @@ export function PreVisitPage(): JSX.Element {
               )}
             </Group>
             {bundle.eligibility ? (
-              <Stack gap={4} mt="xs">
-                <Text size="sm">
-                  {bundle.eligibility.insurer?.display ??
-                    bundle.eligibility.insurance?.[0]?.coverage?.display ??
-                    'Coverage'}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Checked {bundle.eligibility.created ? formatDateTime(bundle.eligibility.created) : 'unknown'}
-                </Text>
-                {stale && (
-                  <Alert color="yellow" variant="light" p="xs" icon={<IconAlertTriangle size={14} />}>
-                    <Text size="xs">Last check is {STALE_DAYS}+ days old — re-check before billing.</Text>
-                  </Alert>
-                )}
-              </Stack>
+              bundle.eligibility.outcome === 'error' ? (
+                <Stack gap={4} mt="xs">
+                  <Text size="sm" c="red">
+                    Last lookup failed. Re-check before billing.
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Attempted {bundle.eligibility.created ? formatDateTime(bundle.eligibility.created) : 'unknown'}
+                  </Text>
+                </Stack>
+              ) : (
+                <Stack gap={4} mt="xs">
+                  <Text size="sm">
+                    {bundle.eligibility.insurer?.display ??
+                      bundle.eligibility.insurance?.[0]?.coverage?.display ??
+                      'Coverage'}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Checked {bundle.eligibility.created ? formatDateTime(bundle.eligibility.created) : 'unknown'}
+                  </Text>
+                  {stale && (
+                    <Alert color="yellow" variant="light" p="xs" icon={<IconAlertTriangle size={14} />}>
+                      <Text size="xs">Last check is {STALE_DAYS}+ days old — re-check before billing.</Text>
+                    </Alert>
+                  )}
+                </Stack>
+              )
             ) : (
               <Text size="xs" c="dimmed" mt="xs">
                 No eligibility check on file. Run a check before billing.
