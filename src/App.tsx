@@ -67,6 +67,7 @@ import { CarePlanPage as WCCarePlanPage } from './pages/careplan/CarePlanPage';
 import { ConsentsPage as WCConsentsPage } from './pages/consents/ConsentsPage';
 import { BillingDashboardPage } from './pages/BillingDashboardPage';
 import { TaskDashboardPage } from './pages/TaskDashboardPage';
+import { SignOffQueuePage } from './pages/SignOffQueuePage';
 import { TodayPage } from './pages/TodayPage';
 import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
 import { PublicConsentPage } from './pages/PublicConsentPage';
@@ -252,6 +253,7 @@ export function App(): JSX.Element | null {
               {/* WiderCircle CHW features */}
               <Route path="/billing-dashboard" element={<BillingDashboardPage />} />
               <Route path="/today" element={<TodayPage />} />
+              <Route path="/signoff-queue" element={<SignOffQueuePage />} />
               <Route path="/my-tasks" element={<TaskDashboardPage />} />
               <Route path="/my-schedule" element={<CHWSchedulePage />} />
               <Route path="/public/consent/:questionnaireId/:patientId" element={<PublicConsentPage />} />
