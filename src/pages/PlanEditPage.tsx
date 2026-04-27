@@ -3,11 +3,12 @@
 import { ActionIcon, Alert, Badge, Button, Card, Group, Loader, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
-import type { CarePlan, CarePlanActivity, Patient } from '@medplum/fhirtypes';
+import type { CarePlan, CarePlanActivity, Patient, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconLock, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { isPlanLocked, latestReviewState, type ReviewState } from './SubmitForReviewPage';
 
 type ItemStatus = 'not-started' | 'in-progress' | 'completed' | 'cancelled' | 'on-hold';
 
@@ -61,6 +62,7 @@ export function PlanEditPage(): JSX.Element {
   const [newTitle, setNewTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const [versionCount, setVersionCount] = useState(0);
+  const [reviewState, setReviewState] = useState<ReviewState>('draft');
 
   const profile = medplum.getProfile();
 
@@ -84,16 +86,30 @@ export function PlanEditPage(): JSX.Element {
       setItems([]);
       setOriginalItems([]);
       setVersionCount(0);
+      setReviewState('draft');
       return;
     }
     try {
-      const plans = await medplum.searchResources('CarePlan', `subject=Patient/${patientId}&_sort=-_lastUpdated&_count=20`);
+      const [plans, reviewTasks] = await Promise.all([
+        medplum.searchResources('CarePlan', `subject=Patient/${patientId}&_sort=-_lastUpdated&_count=20`),
+        medplum
+          .searchResources(
+            'Task',
+            `patient=Patient/${patientId}&code=plan-review-submission&_sort=-_lastUpdated&_count=10`
+          )
+          .catch(() => [] as Task[]),
+      ]);
       setVersionCount(plans.length);
       const latest = plans[0];
       setLatestPlan(latest);
       const parsed = latest ? (latest.activity ?? []).map((a, i) => itemFromActivity(a, i)) : [];
       setItems(parsed);
       setOriginalItems(parsed);
+      // Only the review tasks for this plan version count toward the lock.
+      const planTasks = latest?.id
+        ? reviewTasks.filter((t) => t.focus?.reference === `CarePlan/${latest.id}`)
+        : [];
+      setReviewState(latestReviewState(planTasks));
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     }
@@ -158,6 +174,7 @@ export function PlanEditPage(): JSX.Element {
 
   const dirty = useMemo(() => JSON.stringify(items) !== JSON.stringify(originalItems), [items, originalItems]);
   const flagPending = useMemo(() => hasBillableCompletion(originalItems, items), [originalItems, items]);
+  const locked = isPlanLocked(reviewState);
 
   if (loading) return <Document><Loader /></Document>;
 
@@ -180,6 +197,14 @@ export function PlanEditPage(): JSX.Element {
           </Alert>
         )}
 
+        {latestPlan && locked && (
+          <Alert color="orange" variant="light" icon={<IconLock size={16} />} title={`Plan locked — ${reviewState === 'approved' ? 'approved by Provider' : 'awaiting Provider review'}`}>
+            <Text size="sm">
+              Editing is disabled while the plan is in supervision (CD-14 lock). To make changes, request a revision via the review submission page.
+            </Text>
+          </Alert>
+        )}
+
         {latestPlan && (
           <>
             <Card withBorder radius="md" padding="md">
@@ -199,8 +224,8 @@ export function PlanEditPage(): JSX.Element {
                           {item.billable && <Badge size="xs" color="orange" variant="light" style={{ width: 'fit-content' }}>Billable</Badge>}
                         </Stack>
                         <Group gap="xs">
-                          <Select value={item.status} onChange={(v) => updateStatus(item.id, (v as ItemStatus) ?? 'not-started')} data={(Object.keys(STATUS_LABELS) as ItemStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] }))} size="xs" w={140} aria-label={`Status for ${item.title}`} />
-                          <ActionIcon variant="subtle" color="red" onClick={() => removeItem(item.id)} aria-label={`Soft-delete ${item.title}`} disabled={item.status === 'cancelled'}>
+                          <Select value={item.status} onChange={(v) => updateStatus(item.id, (v as ItemStatus) ?? 'not-started')} data={(Object.keys(STATUS_LABELS) as ItemStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] }))} size="xs" w={140} aria-label={`Status for ${item.title}`} disabled={locked} />
+                          <ActionIcon variant="subtle" color="red" onClick={() => removeItem(item.id)} aria-label={`Soft-delete ${item.title}`} disabled={locked || item.status === 'cancelled'}>
                             <IconTrash size={14} />
                           </ActionIcon>
                         </Group>
@@ -209,8 +234,8 @@ export function PlanEditPage(): JSX.Element {
                   </Stack>
                 )}
                 <Group gap="xs">
-                  <TextInput placeholder="Add an action item…" value={newTitle} onChange={(e) => setNewTitle(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }} style={{ flex: 1 }} />
-                  <Button leftSection={<IconPlus size={14} />} onClick={addItem} disabled={!newTitle.trim()} variant="light">Add</Button>
+                  <TextInput placeholder="Add an action item…" value={newTitle} onChange={(e) => setNewTitle(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }} style={{ flex: 1 }} disabled={locked} />
+                  <Button leftSection={<IconPlus size={14} />} onClick={addItem} disabled={locked || !newTitle.trim()} variant="light">Add</Button>
                 </Group>
               </Stack>
             </Card>
@@ -222,11 +247,12 @@ export function PlanEditPage(): JSX.Element {
             )}
 
             <Group>
-              <Button color="blue" onClick={saveEdits} loading={saving} disabled={!dirty || saving} leftSection={<IconCheck size={16} />}>
+              <Button color="blue" onClick={saveEdits} loading={saving} disabled={locked || !dirty || saving} leftSection={<IconCheck size={16} />}>
                 Save edits
               </Button>
-              {!dirty && <Text size="xs" c="dimmed">No changes to save.</Text>}
-              {dirty && <Text size="xs" c="dimmed">Unsaved changes — saving creates v{versionCount + 1}.</Text>}
+              {locked && <Text size="xs" c="dimmed">Locked while in Provider review.</Text>}
+              {!locked && !dirty && <Text size="xs" c="dimmed">No changes to save.</Text>}
+              {!locked && dirty && <Text size="xs" c="dimmed">Unsaved changes — saving creates v{versionCount + 1}.</Text>}
             </Group>
 
             {latestPlan.meta?.lastUpdated && (
