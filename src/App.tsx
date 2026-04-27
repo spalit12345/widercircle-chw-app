@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Loading, useMedplum, useMedplumProfile } from '@medplum/react';
 import type { JSX } from 'react';
-import { Suspense, useState } from 'react';
+import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { RequirePermission } from './auth/RoleGate';
 import { TaskDetailsModal } from './components/tasks/TaskDetailsModal';
 import { hasDoseSpotIdentifier, hasScriptSureIdentifier } from './components/utils';
 import { WcShell } from './components/WcShell';
 import './index.css';
-
-const SETUP_DISMISSED_KEY = 'medplum-provider-setup-completed';
 
 import { EncounterChartPage } from './pages/encounter/EncounterChartPage';
 import { EncounterModal } from './pages/encounter/EncounterModal';
@@ -74,7 +72,6 @@ import { ReferralsPage } from './pages/ReferralsPage';
 export function App(): JSX.Element | null {
   const medplum = useMedplum();
   const profile = useMedplumProfile();
-  const [setupDismissed] = useState(() => localStorage.getItem(SETUP_DISMISSED_KEY) === 'true');
 
   if (medplum.isLoading()) {
     return null;
@@ -94,19 +91,7 @@ export function App(): JSX.Element | null {
                 <Route index element={<SpacesPage />} />
                 <Route path=":topicId" element={<SpacesPage />} />
               </Route>
-              <Route
-                path="/"
-                element={
-                  <Navigate
-                    to={
-                      setupDismissed
-                        ? '/Patient?_count=20&_fields=name,email,gender&_sort=-_lastUpdated'
-                        : '/getstarted'
-                    }
-                    replace
-                  />
-                }
-              />
+              <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/Patient/new" element={<ResourceCreatePage />} />
               <Route path="/members/:patientId" element={<MemberContextPage />} />
               <Route path="/Patient/:patientId" element={<PatientPage />}>
