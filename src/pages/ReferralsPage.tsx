@@ -25,6 +25,7 @@ import type { Patient, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconExternalLink, IconPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
+import { useSearchParams } from 'react-router';
 
 const REFERRAL_TASK_CODE = 'sdoh-referral';
 
@@ -120,8 +121,11 @@ export function ReferralsPage(): JSX.Element {
     ? `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() || 'Clinician'
     : 'Clinician';
 
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get('patientId') ?? '';
+
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);

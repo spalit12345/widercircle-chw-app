@@ -38,7 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'messaging', label: 'Messaging', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Spaces') || p.startsWith('/Fax') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing') },
-  { id: 'reporting', label: 'Reporting', href: '/eligibility', Icon: IconActivity, match: (p) => p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking') || p.startsWith('/referrals') },
+  { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking') },
   { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconAdjustmentsHorizontal, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin') },
 ];
 

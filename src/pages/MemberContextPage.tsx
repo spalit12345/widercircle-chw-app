@@ -11,7 +11,7 @@
 // data is the FHIR Patient compartment. v1 reads what's available; v2 will
 // add referral and case timeline once CM-05 / CM-21 land.
 
-import { Badge, Card, Grid, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { Badge, Button, Card, Grid, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type {
   AllergyIntolerance,
@@ -25,10 +25,11 @@ import type {
 } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
 import { showNotification } from '@mantine/notifications';
-import { IconCalendar, IconChevronRight, IconHistory, IconHome, IconNotes, IconPill, IconStethoscope, IconVirus } from '@tabler/icons-react';
+import { IconCalendar, IconChevronRight, IconExternalLink, IconHistory, IconHome, IconNotes, IconPill, IconStethoscope, IconVirus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { MemberKeyInfoHeader } from '../components/MemberKeyInfoHeader';
+import { useRole } from '../auth/RoleContext';
 
 interface LoadedData {
   patient: Patient | undefined;
@@ -54,6 +55,8 @@ const EMPTY: LoadedData = {
 
 export function MemberContextPage(): JSX.Element {
   const medplum = useMedplum();
+  const navigate = useNavigate();
+  const { hasPermission } = useRole();
   const { patientId } = useParams<{ patientId: string }>();
   const [data, setData] = useState<LoadedData>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -131,6 +134,19 @@ export function MemberContextPage(): JSX.Element {
     <Document>
       <Stack gap="md">
         <MemberKeyInfoHeader patient={data.patient} coverages={data.coverages} consentValid={consentValid} />
+
+        <Group justify="flex-end">
+          {hasPermission('referrals.manage') && (
+            <Button
+              variant="light"
+              color="orange"
+              leftSection={<IconExternalLink size={14} />}
+              onClick={() => navigate(`/referrals?patientId=${patientId}`)}
+            >
+              Refer to supplier
+            </Button>
+          )}
+        </Group>
 
         <Grid gutter="md">
           <Grid.Col span={{ base: 12, md: 6 }}>
