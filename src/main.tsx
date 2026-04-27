@@ -12,7 +12,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createBrowserRouter } from 'react-router';
 import { App } from './App';
+import { RoleProvider } from './auth/RoleContext';
 import { TimerProvider } from './billing/TimerContext';
+// WC design tokens — exposes --wc-brand-*, --wc-base-*, --wc-error-*, etc.
+// to every component. Mantine theme below maps key slots to these tokens.
+import '../Design/assets/wc-tokens.css';
 
 const medplum = new MedplumClient({
   onUnauthenticated: () => (window.location.href = '/'),
@@ -22,7 +26,29 @@ const medplum = new MedplumClient({
 });
 
 const theme = createTheme({
+  // Map Mantine's "brand" color array to the WC orange ramp (gold → orange → vermilion).
+  // primaryShade=6 puts --wc-brand-500 (#F27321 the canonical WC orange) at the default
+  // shade so `<Button color="brand">` and `<Badge color="brand">` paint the brand color.
+  primaryColor: 'brand',
+  primaryShade: 6,
+  colors: {
+    brand: [
+      '#FFF5E8', // 0  --wc-tint-100
+      '#FFEFD9', // 1  --wc-tint-200
+      '#FCB820', // 2  --wc-brand-50  (gold)
+      '#FCB713', // 3  --wc-brand-200 (gold highlight)
+      '#F89C1E', // 4  --wc-brand-300
+      '#F58B1F', // 5  --wc-brand-400
+      '#F27321', // 6  --wc-brand-500 PRIMARY (Mantine default shade)
+      '#F05723', // 7  --wc-brand-600
+      '#EF4E23', // 8  --wc-brand-700 (vermilion)
+      '#D1190D', // 9  --wc-brand-800
+    ],
+  },
+  fontFamily: 'var(--wc-font-body, Inter, system-ui, -apple-system, sans-serif)',
+  fontFamilyMonospace: 'var(--wc-font-mono, ui-monospace, Menlo, monospace)',
   headings: {
+    fontFamily: 'var(--wc-font-display, Montserrat, system-ui, -apple-system, sans-serif)',
     sizes: {
       h1: {
         fontSize: '1.125rem',
@@ -38,6 +64,7 @@ const theme = createTheme({
     lg: '1.0rem',
     xl: '1.125rem',
   },
+  defaultRadius: 'var(--wc-radius-md, 12px)',
 });
 
 const router = createBrowserRouter([{ path: '*', element: <App /> }]);
@@ -51,9 +78,11 @@ root.render(
     <MedplumProvider medplum={medplum} navigate={navigate}>
       <MantineProvider theme={theme}>
         <Notifications position="bottom-right" />
-        <TimerProvider>
-          <RouterProvider router={router} />
-        </TimerProvider>
+        <RoleProvider>
+          <TimerProvider>
+            <RouterProvider router={router} />
+          </TimerProvider>
+        </RoleProvider>
       </MantineProvider>
     </MedplumProvider>
   </StrictMode>
