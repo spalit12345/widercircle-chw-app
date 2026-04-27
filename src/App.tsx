@@ -69,6 +69,7 @@ import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
 import { PublicConsentPage } from './pages/PublicConsentPage';
 import { RoleManagementPage } from './pages/RoleManagementPage';
 import { MemberContextPage } from './pages/MemberContextPage';
+import { ReferralsPage } from './pages/ReferralsPage';
 
 export function App(): JSX.Element | null {
   const medplum = useMedplum();
@@ -186,6 +187,14 @@ export function App(): JSX.Element | null {
               />
               <Route path="/my-tasks" element={<TaskDashboardPage />} />
               <Route path="/my-schedule" element={<CHWSchedulePage />} />
+              <Route
+                path="/referrals"
+                element={
+                  <RequirePermission permission="referrals.manage">
+                    <ReferralsPage />
+                  </RequirePermission>
+                }
+              />
               <Route
                 path="/admin/roles"
                 element={

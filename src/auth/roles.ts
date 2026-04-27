@@ -46,6 +46,7 @@ export const PERMISSIONS = [
   'billing.view',
   'billing.sync',
   'sdoh.administer',
+  'referrals.manage',
   'admin.roles',
   'admin.integrations',
 ] as const;
@@ -64,6 +65,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     'time.manualEntry',
     'review.submit',
     'sdoh.administer',
+    'referrals.manage',
   ]),
   Provider: new Set<Permission>([
     'today.view',
@@ -86,6 +88,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     'eligibility.check',
     'careplan.review',
     'sdoh.administer',
+    'referrals.manage',
     'time.track',
   ]),
   ContactCenterAgent: new Set<Permission>(['members.view']),
