@@ -1,28 +1,12 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { getReferenceString } from '@medplum/core';
-import { useDoseSpotNotifications } from '@medplum/dosespot-react';
-import { AppShell, Loading, Logo, useMedplum, useMedplumProfile } from '@medplum/react';
-import {
-  IconApps,
-  IconBook2,
-  IconCalendar,
-  IconCalendarEvent,
-  IconChecklist,
-  IconClipboardCheck,
-  IconMail,
-  IconPill,
-  IconPrinter,
-  IconReceipt,
-  IconSettingsAutomation,
-  IconUserPlus,
-  IconUsers,
-} from '@tabler/icons-react';
+import { Loading, useMedplum, useMedplumProfile } from '@medplum/react';
 import type { JSX } from 'react';
 import { Suspense, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router';
+import { Navigate, Route, Routes } from 'react-router';
 import { TaskDetailsModal } from './components/tasks/TaskDetailsModal';
 import { hasDoseSpotIdentifier, hasScriptSureIdentifier } from './components/utils';
+import { WcShell } from './components/WcShell';
 import './index.css';
 
 const SETUP_DISMISSED_KEY = 'medplum-provider-setup-completed';
@@ -67,22 +51,26 @@ import { CarePlanPage as WCCarePlanPage } from './pages/careplan/CarePlanPage';
 import { ConsentsPage as WCConsentsPage } from './pages/consents/ConsentsPage';
 import { BillingDashboardPage } from './pages/BillingDashboardPage';
 import { TaskDashboardPage } from './pages/TaskDashboardPage';
+import { BillingSyncPage } from './pages/BillingSyncPage';
+import { ConsentCapturePage } from './pages/ConsentCapturePage';
+import { EligibilityCheckPage } from './pages/EligibilityCheckPage';
+import { PlanEditPage } from './pages/PlanEditPage';
+import { PlanOfCarePage } from './pages/PlanOfCarePage';
+import { PlanReviewPage } from './pages/PlanReviewPage';
+import { PreVisitPage } from './pages/PreVisitPage';
+import { SDoHAssessmentPage } from './pages/SDoHAssessmentPage';
+import { SignOffQueuePage } from './pages/SignOffQueuePage';
+import { SubmitForReviewPage } from './pages/SubmitForReviewPage';
+import { TimeTrackingPage } from './pages/TimeTrackingPage';
 import { TodayPage } from './pages/TodayPage';
+import { VisitWorkspacePage } from './pages/VisitWorkspacePage';
 import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
 import { PublicConsentPage } from './pages/PublicConsentPage';
 
 export function App(): JSX.Element | null {
   const medplum = useMedplum();
   const profile = useMedplumProfile();
-  const doseSpotCount = useDoseSpotNotifications();
-  const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const [setupDismissed, setSetupDismissed] = useState(() => localStorage.getItem(SETUP_DISMISSED_KEY) === 'true');
-
-  const handleDismissSetup = (): void => {
-    localStorage.setItem(SETUP_DISMISSED_KEY, 'true');
-    setSetupDismissed(true);
-  };
+  const [setupDismissed] = useState(() => localStorage.getItem(SETUP_DISMISSED_KEY) === 'true');
 
   if (medplum.isLoading()) {
     return null;
@@ -92,102 +80,9 @@ export function App(): JSX.Element | null {
   const hasDoseSpot = hasDoseSpotIdentifier(membership);
   const hasScriptSure = hasScriptSureIdentifier(membership);
 
-  return (
-    <AppShell
-      logo={<Logo size={24} />}
-      pathname={location.pathname}
-      searchParams={searchParams}
-      layoutVersion="v2"
-      showLayoutVersionToggle={false}
-      menus={
-        profile
-          ? [
-              {
-                links: [
-                  { icon: <IconBook2 />, label: 'Spaces', href: '/Spaces/Communication' },
-                  {
-                    icon: <IconUsers />,
-                    label: 'Patients',
-                    href: '/Patient?_count=20&_fields=name,email,gender&_sort=-_lastUpdated',
-                  },
-                  { icon: <IconCalendarEvent />, label: 'Schedule', href: `/Calendar/Schedule` },
-                  {
-                    icon: <IconMail />,
-                    label: 'Messages',
-                    href: `/Communication?status=in-progress`,
-                    notificationCount: {
-                      resourceType: 'Communication',
-                      countCriteria:
-                        'status=in-progress&_has:Communication:part-of:_id:not=null&identifier:not=ai-message-topic&_summary=count',
-                      subscriptionCriteria: `Communication?status=in-progress&_has:Communication:part-of:_id:not=null&identifier:not=ai-message-topic`,
-                    },
-                  },
-                  {
-                    icon: <IconClipboardCheck />,
-                    label: 'Tasks',
-                    href: `/Task?owner=${getReferenceString(profile)}&_sort=-_lastUpdated&status=requested,ready,received,accepted,in-progress,draft`,
-                    notificationCount: {
-                      resourceType: 'Task',
-                      countCriteria: `owner=${getReferenceString(profile)}&status=requested,ready,received,accepted,in-progress,draft&_summary=count`,
-                      subscriptionCriteria: `Task?owner=${getReferenceString(profile)}&status=requested,ready,received,accepted,in-progress,draft`,
-                    },
-                  },
-                  { icon: <IconPrinter />, label: 'Faxes', href: '/Fax/Communication' },
-                ],
-              },
-              {
-                title: 'Care Delivery',
-                links: [
-                  { icon: <IconChecklist />, label: 'My Tasks', href: '/my-tasks' },
-                  { icon: <IconCalendar />, label: 'My Schedule', href: '/my-schedule' },
-                  { icon: <IconReceipt />, label: 'Billing Dashboard', href: '/billing-dashboard' },
-                ],
-              },
-              {
-                title: 'Quick Links',
-                links: [
-                  ...(!setupDismissed
-                    ? [
-                        {
-                          icon: <IconSettingsAutomation />,
-                          label: 'Get Started',
-                          href: '/getstarted',
-                          onDismiss: handleDismissSetup,
-                        },
-                      ]
-                    : []),
-                  { icon: <IconUserPlus />, label: 'New Patient', href: '/onboarding' },
-                  { icon: <IconApps />, label: 'Integrations', href: '/integrations' },
-                  ...(hasDoseSpot
-                    ? [
-                        {
-                          icon: <IconPill />,
-                          label: 'DoseSpot',
-                          href: '/dosespot',
-                          alert: true,
-                          count: doseSpotCount ?? 0,
-                        },
-                      ]
-                    : []),
-                  ...(hasScriptSure
-                    ? [
-                        {
-                          icon: <IconPill />,
-                          label: 'ScriptSure',
-                          href: '/scriptsure',
-                        },
-                      ]
-                    : []),
-                ],
-              },
-            ]
-          : undefined
-      }
-      resourceTypeSearchDisabled={true}
-      spotlightPatientsOnly={true}
-    >
-      <Suspense fallback={<Loading />}>
-        <Routes>
+  const routes = (
+    <Suspense fallback={<Loading />}>
+      <Routes>
           {profile ? (
             <>
               <Route path="/getstarted" element={<GetStartedPage />} />
@@ -252,6 +147,18 @@ export function App(): JSX.Element | null {
               {/* WiderCircle CHW features */}
               <Route path="/billing-dashboard" element={<BillingDashboardPage />} />
               <Route path="/today" element={<TodayPage />} />
+              <Route path="/eligibility" element={<EligibilityCheckPage />} />
+              <Route path="/encounters/:encounterId/pre-visit" element={<PreVisitPage />} />
+              <Route path="/sdoh" element={<SDoHAssessmentPage />} />
+              <Route path="/consent" element={<ConsentCapturePage />} />
+              <Route path="/encounters/:encounterId/workspace" element={<VisitWorkspacePage />} />
+              <Route path="/plan-of-care" element={<PlanOfCarePage />} />
+              <Route path="/plan-review" element={<PlanReviewPage />} />
+              <Route path="/plan-edit" element={<PlanEditPage />} />
+              <Route path="/time-tracking" element={<TimeTrackingPage />} />
+              <Route path="/review-submission" element={<SubmitForReviewPage />} />
+              <Route path="/signoff-queue" element={<SignOffQueuePage />} />
+              <Route path="/billing-sync" element={<BillingSyncPage />} />
               <Route path="/my-tasks" element={<TaskDashboardPage />} />
               <Route path="/my-schedule" element={<CHWSchedulePage />} />
               <Route path="/public/consent/:questionnaireId/:patientId" element={<PublicConsentPage />} />
@@ -279,8 +186,13 @@ export function App(): JSX.Element | null {
               <Route path="*" element={<Navigate to="/signin" replace />} />
             </>
           )}
-        </Routes>
-      </Suspense>
-    </AppShell>
+      </Routes>
+    </Suspense>
   );
+
+  if (!profile) {
+    return routes;
+  }
+
+  return <WcShell>{routes}</WcShell>;
 }
