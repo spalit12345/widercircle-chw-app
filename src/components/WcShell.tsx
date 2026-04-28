@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useRole } from '../auth/RoleContext';
 import { ROLE_LABELS, ROLES, type Role } from '../auth/roles';
+import type { Permission } from '../auth/roles';
 import { recordRoleChange } from '../auth/audit';
 
 interface NavItem {
@@ -29,6 +30,13 @@ interface NavItem {
   Icon: typeof IconHome2;
   match?: (pathname: string) => boolean;
   badge?: number;
+  /**
+   * CM-13 AC-7 — when set, the nav item is hidden from roles that don't have
+   * the listed permission. The role-switch demo on stage relies on this so
+   * Billing disappears for CHW, Admin disappears for everyone except admins,
+   * etc.
+   */
+  requiresPermission?: Permission;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -37,18 +45,24 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'members', label: 'Members', href: '/my-caseload', Icon: IconUsers, match: (p) => p.startsWith('/my-caseload') || p.startsWith('/Patient') || p.startsWith('/members') },
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'messaging', label: 'Messaging', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Spaces') || p.startsWith('/Fax') },
-  { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing') },
-  { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking') },
-  { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconAdjustmentsHorizontal, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin') },
+  { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing'), requiresPermission: 'billing.view' },
+  { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking'), requiresPermission: 'referrals.manage' },
+  { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconAdjustmentsHorizontal, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin'), requiresPermission: 'admin.roles' },
 ];
 
 function LeftRail(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
+  const { hasPermission } = useRole();
+  const visibleNav = useMemo(
+    () =>
+      NAV_ITEMS.filter((it) => !it.requiresPermission || hasPermission(it.requiresPermission)),
+    [hasPermission]
+  );
   const activeId = useMemo(() => {
-    const hit = NAV_ITEMS.find((n) => n.match?.(location.pathname));
+    const hit = visibleNav.find((n) => n.match?.(location.pathname));
     return hit?.id ?? 'home';
-  }, [location.pathname]);
+  }, [location.pathname, visibleNav]);
 
   return (
     <nav
@@ -87,7 +101,7 @@ function LeftRail(): JSX.Element {
       >
         <img src="/wc-logo.svg" alt="Wider Circle" style={{ width: 34, height: 34 }} />
       </button>
-      {NAV_ITEMS.map((it) => {
+      {visibleNav.map((it) => {
         const sel = it.id === activeId;
         return (
           <button

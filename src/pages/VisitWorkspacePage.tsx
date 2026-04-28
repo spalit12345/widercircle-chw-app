@@ -41,6 +41,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ConsentBlock } from '../components/consent/ConsentBlock';
 import { CONSENT_CATEGORY_CODE, evaluateConsentStatus, utf8ToBase64 } from './ConsentCapturePage';
+import { emitAudit } from '../utils/audit';
+import { getActiveCarePlanRef } from '../utils/care-plan-link';
 
 const RECORDING_CATEGORY_CODE = 'call-recording';
 const RECORDING_SCRIPT_VERSION = 'call-recording-v1';
@@ -117,6 +119,10 @@ export function VisitWorkspacePage(): JSX.Element {
   const [recordingScriptRead, setRecordingScriptRead] = useState<boolean>(false);
   const [savingRecordingConsent, setSavingRecordingConsent] = useState<boolean>(false);
   const [error, setError] = useState<string | undefined>();
+  // CD-08 AC-4 — encounter close requires an active Plan of Care. The gate
+  // surfaces a confirmation modal instead of silently closing.
+  const [closeGateOpen, { open: openCloseGate, close: closeCloseGate }] = useDisclosure(false);
+  const [closeGateChecking, setCloseGateChecking] = useState(false);
 
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
@@ -190,10 +196,18 @@ export function VisitWorkspacePage(): JSX.Element {
         status: 'in-progress',
         period: { ...(encounter.period ?? {}), start: new Date(now).toISOString() },
       });
+      // CD-06 AC-5 — DA-13 audit emission on visit launch.
+      void emitAudit(medplum, {
+        action: 'visit.launched',
+        patientRef: patient?.id
+          ? { reference: `Patient/${patient.id}` }
+          : undefined,
+        encounterRef: encounter.id ? { reference: `Encounter/${encounter.id}` } : undefined,
+      });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     }
-  }, [encounter, consentOnFile, medplum]);
+  }, [encounter, consentOnFile, medplum, patient]);
 
   const togglePause = useCallback(() => {
     const now = Date.now();
@@ -211,28 +225,24 @@ export function VisitWorkspacePage(): JSX.Element {
     }
   }, [phase]);
 
-  const endVisit = useCallback(async () => {
-    if (!encounter || !startedAt) return;
-    const now = Date.now();
-    // Close any dangling pause before finalizing.
-    const gaps = [...gapsRef.current];
-    const open = gaps[gaps.length - 1];
-    if (open && !open.endedAt) {
-      open.endedAt = now;
-    }
-    gapsRef.current = gaps;
-    setEndedAt(now);
-    setPhase('ended');
-    const billableSec = computeBillableSeconds(startedAt, gaps, now, now);
-    try {
-      await medplum.updateResource<Encounter>({
-        ...encounter,
-        status: 'finished',
-        period: {
-          start: new Date(startedAt).toISOString(),
-          end: new Date(now).toISOString(),
-        },
-        extension: [
+  // CD-08 AC-4 — gate Encounter close on an active Plan of Care. If none, the
+  // CHW/Provider can still close (some narratives need it) but the override is
+  // captured as an audit event + flagged on the Encounter so billing knows.
+  const finalizeVisit = useCallback(
+    async (overridePlanGate = false) => {
+      if (!encounter || !startedAt) return;
+      const now = Date.now();
+      const gaps = [...gapsRef.current];
+      const open = gaps[gaps.length - 1];
+      if (open && !open.endedAt) {
+        open.endedAt = now;
+      }
+      gapsRef.current = gaps;
+      setEndedAt(now);
+      setPhase('ended');
+      const billableSec = computeBillableSeconds(startedAt, gaps, now, now);
+      try {
+        const baseExtensions = [
           ...(encounter.extension ?? []),
           {
             url: 'https://widercircle.com/fhir/StructureDefinition/visit-billable-seconds',
@@ -242,16 +252,74 @@ export function VisitWorkspacePage(): JSX.Element {
             url: 'https://widercircle.com/fhir/StructureDefinition/visit-notes',
             valueString: notes || undefined,
           },
-        ].filter((e) => e.valueInteger !== undefined || e.valueString !== undefined),
-      });
-      showNotification({
-        color: 'green',
-        message: `Visit ended · ${formatDuration(billableSec)} billable`,
-      });
-    } catch (err) {
-      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+        ].filter((e) => e.valueInteger !== undefined || e.valueString !== undefined);
+
+        const closedWithoutPlanExtensions = overridePlanGate
+          ? [
+              ...baseExtensions,
+              {
+                url: 'https://widercircle.com/fhir/StructureDefinition/visit-closed-without-plan',
+                valueBoolean: true,
+              },
+            ]
+          : baseExtensions;
+
+        await medplum.updateResource<Encounter>({
+          ...encounter,
+          status: 'finished',
+          period: {
+            start: new Date(startedAt).toISOString(),
+            end: new Date(now).toISOString(),
+          },
+          extension: closedWithoutPlanExtensions,
+        });
+        showNotification({
+          color: overridePlanGate ? 'yellow' : 'green',
+          message: overridePlanGate
+            ? `Visit ended without Plan of Care · ${formatDuration(billableSec)} flagged non-billable`
+            : `Visit ended · ${formatDuration(billableSec)} billable`,
+        });
+        // CD-06 AC-5 — audit on visit end (always).
+        void emitAudit(medplum, {
+          action: 'visit.ended',
+          patientRef: patient?.id ? { reference: `Patient/${patient.id}` } : undefined,
+          encounterRef: encounter.id ? { reference: `Encounter/${encounter.id}` } : undefined,
+          meta: { billableSeconds: billableSec, recording: recording },
+        });
+        // CD-08 AC-4 — separate audit when the Plan gate was overridden.
+        if (overridePlanGate) {
+          void emitAudit(medplum, {
+            action: 'encounter.closed-without-plan',
+            patientRef: patient?.id ? { reference: `Patient/${patient.id}` } : undefined,
+            encounterRef: encounter.id ? { reference: `Encounter/${encounter.id}` } : undefined,
+          });
+        }
+      } catch (err) {
+        showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+      }
+    },
+    [encounter, startedAt, notes, medplum, patient, recording]
+  );
+
+  const endVisit = useCallback(async () => {
+    if (!encounter || !startedAt || !patient?.id) return;
+    setCloseGateChecking(true);
+    try {
+      const planRef = await getActiveCarePlanRef(medplum, patient.id);
+      if (planRef) {
+        await finalizeVisit(false);
+      } else {
+        openCloseGate();
+      }
+    } finally {
+      setCloseGateChecking(false);
     }
-  }, [encounter, startedAt, notes, medplum]);
+  }, [encounter, startedAt, patient, medplum, finalizeVisit, openCloseGate]);
+
+  const confirmCloseWithoutPlan = useCallback(async () => {
+    closeCloseGate();
+    await finalizeVisit(true);
+  }, [closeCloseGate, finalizeVisit]);
 
   const billableSec = useMemo(() => {
     if (!startedAt) return 0;
@@ -340,17 +408,25 @@ export function VisitWorkspacePage(): JSX.Element {
           },
         ],
       };
-      await medplum.createResource<Consent>(consent);
+      const saved = await medplum.createResource<Consent>(consent);
       setRecordingConsent(true);
       setRecording(true);
       closeRecordingPrompt();
       showNotification({ color: 'red', message: 'Recording consent captured · recording started' });
+      // CD-06 AC-5 — audit on recording start with the recording-consent ref.
+      void emitAudit(medplum, {
+        action: 'visit.recording-started',
+        patientRef: patient.id ? { reference: `Patient/${patient.id}` } : undefined,
+        encounterRef: encounter?.id ? { reference: `Encounter/${encounter.id}` } : undefined,
+        consentRef: saved.id ? { reference: `Consent/${saved.id}` } : undefined,
+        meta: { scriptVersion: RECORDING_SCRIPT_VERSION, method: 'verbal' },
+      });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {
       setSavingRecordingConsent(false);
     }
-  }, [patient, patientName, recordingScriptRead, medplum, closeRecordingPrompt]);
+  }, [patient, patientName, recordingScriptRead, medplum, closeRecordingPrompt, encounter]);
 
   if (phase === 'checking') {
     return (
@@ -424,6 +500,7 @@ export function VisitWorkspacePage(): JSX.Element {
                   color="red"
                   leftSection={<IconPhoneOff size={16} />}
                   onClick={endVisit}
+                  loading={closeGateChecking}
                   aria-label="End visit"
                 >
                   End visit
@@ -619,6 +696,40 @@ export function VisitWorkspacePage(): JSX.Element {
           </Grid.Col>
         </Grid>
       </Stack>
+
+      {/* CD-08 AC-4: encounter close requires an active Plan of Care. The CHW
+          can override (some narratives need it) but the override is captured
+          as an audit event + flagged on the Encounter so billing can refuse. */}
+      <Modal
+        opened={closeGateOpen}
+        onClose={closeCloseGate}
+        title="No Plan of Care on file"
+        size="md"
+        centered
+      >
+        <Stack gap="md">
+          <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Text size="sm">
+              CD-08 §AC-4 requires a Plan of Care before you can close an Encounter and bill the
+              member's time. This member has no active CarePlan.
+            </Text>
+            <Text size="xs" c="dimmed" mt="xs">
+              You can author a Plan now from <span style={{ fontFamily: 'monospace' }}>/plan-of-care</span>{' '}
+              or close anyway — the visit will be flagged{' '}
+              <span style={{ fontFamily: 'monospace' }}>visit-closed-without-plan = true</span> and
+              treated as non-billable.
+            </Text>
+          </Alert>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="light" onClick={closeCloseGate}>
+              Stay in visit · author plan
+            </Button>
+            <Button color="red" onClick={confirmCloseWithoutPlan}>
+              Close without plan
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* CD-06 AC-6: recording-consent prompt — gates Start recording when no
           call-recording consent is on file for this patient. */}

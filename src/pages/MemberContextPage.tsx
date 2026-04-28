@@ -23,6 +23,7 @@ import {
   Stack,
   Text,
   Textarea,
+  TextInput,
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -34,6 +35,7 @@ import type {
   Condition,
   Consent,
   Coverage,
+  Encounter,
   MedicationRequest,
   Patient,
   Task,
@@ -47,6 +49,7 @@ import {
   IconExternalLink,
   IconHistory,
   IconHome,
+  IconMapPin,
   IconNotes,
   IconPill,
   IconPlus,
@@ -57,6 +60,7 @@ import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'reac
 import { Link, useNavigate, useParams } from 'react-router';
 import { MemberKeyInfoHeader } from '../components/MemberKeyInfoHeader';
 import { useRole } from '../auth/RoleContext';
+import { emitAudit } from '../utils/audit';
 
 const CASE_CATEGORY_CODE = 'case-management';
 const CASE_TYPE_EXT = 'https://widercircle.com/fhir/StructureDefinition/case-type';
@@ -81,6 +85,23 @@ const CASE_PRIORITIES: Array<{ value: string; label: string }> = [
 const caseTypeLabel = (code: string | undefined): string =>
   CASE_TYPES.find((t) => t.value === code)?.label ?? code ?? 'Case';
 
+// CM-13 AC-4 — field-visit logging.
+const FIELD_VISIT_CLASS_CODE = 'FLD';
+const FIELD_VISIT_CATEGORY_CODE = 'field-visit';
+const FIELD_VISIT_LOCATIONS: Array<{ value: string; label: string }> = [
+  { value: 'home', label: "Member's home" },
+  { value: 'community', label: 'Community location' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'other', label: 'Other' },
+];
+const FIELD_VISIT_DISPOSITIONS: Array<{ value: string; label: string }> = [
+  { value: 'completed', label: 'Completed' },
+  { value: 'partial', label: 'Partial' },
+  { value: 'no-show', label: 'No-show' },
+  { value: 'refused', label: 'Refused' },
+  { value: 'unable-to-contact', label: 'Unable to contact' },
+];
+
 interface LoadedData {
   patient: Patient | undefined;
   coverages: Coverage[];
@@ -91,6 +112,7 @@ interface LoadedData {
   communications: Communication[];
   carePlans: CarePlan[];
   cases: Task[];
+  fieldVisits: Encounter[];
 }
 
 const EMPTY: LoadedData = {
@@ -103,6 +125,7 @@ const EMPTY: LoadedData = {
   communications: [],
   carePlans: [],
   cases: [],
+  fieldVisits: [],
 };
 
 export function MemberContextPage(): JSX.Element {
@@ -117,6 +140,13 @@ export function MemberContextPage(): JSX.Element {
   const [caseSummary, setCaseSummary] = useState('');
   const [casePriority, setCasePriority] = useState<string>('urgent');
   const [creatingCase, setCreatingCase] = useState(false);
+  // CM-13 AC-4 — field-visit logging.
+  const [visitModalOpened, { open: openVisitModal, close: closeVisitModal }] = useDisclosure(false);
+  const [visitDate, setVisitDate] = useState<string>(new Date().toISOString().slice(0, 16));
+  const [visitLocation, setVisitLocation] = useState<string>('home');
+  const [visitDisposition, setVisitDisposition] = useState<string>('completed');
+  const [visitNotes, setVisitNotes] = useState('');
+  const [loggingVisit, setLoggingVisit] = useState(false);
 
   const load = useCallback(async () => {
     if (!patientId) return;
@@ -124,8 +154,18 @@ export function MemberContextPage(): JSX.Element {
     const subject = `subject=Patient/${patientId}`;
     const patientRef = `patient=Patient/${patientId}`;
     try {
-      const [patient, coverages, conditions, medications, allergies, consents, communications, carePlans, cases] =
-        await Promise.all([
+      const [
+        patient,
+        coverages,
+        conditions,
+        medications,
+        allergies,
+        consents,
+        communications,
+        carePlans,
+        cases,
+        visits,
+      ] = await Promise.all([
           medplum.readResource('Patient', patientId).catch(() => undefined),
           medplum.searchResources('Coverage', `${patientRef}&_count=10`).catch(() => []),
           medplum
@@ -152,6 +192,12 @@ export function MemberContextPage(): JSX.Element {
               `patient=Patient/${patientId}&code=${CASE_CATEGORY_CODE}&_sort=-_lastUpdated&_count=20`
             )
             .catch(() => [] as Task[]),
+          medplum
+            .searchResources(
+              'Encounter',
+              `${subject}&class=${FIELD_VISIT_CLASS_CODE}&_sort=-_lastUpdated&_count=10`
+            )
+            .catch(() => [] as Encounter[]),
         ]);
       setData({
         patient,
@@ -163,6 +209,7 @@ export function MemberContextPage(): JSX.Element {
         communications: communications ?? [],
         carePlans: carePlans ?? [],
         cases: (cases ?? []) as Task[],
+        fieldVisits: (visits ?? []) as Encounter[],
       });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -174,6 +221,104 @@ export function MemberContextPage(): JSX.Element {
   useEffect(() => {
     load().catch(console.error);
   }, [load]);
+
+  const resetVisitForm = useCallback(() => {
+    setVisitDate(new Date().toISOString().slice(0, 16));
+    setVisitLocation('home');
+    setVisitDisposition('completed');
+    setVisitNotes('');
+  }, []);
+
+  const handleLogFieldVisit = useCallback(async () => {
+    if (!patientId || !data.patient) return;
+    const profile = medplum.getProfile();
+    setLoggingVisit(true);
+    try {
+      const start = new Date(visitDate).toISOString();
+      const newVisit: Encounter = {
+        resourceType: 'Encounter',
+        status: 'finished',
+        class: {
+          system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+          code: FIELD_VISIT_CLASS_CODE,
+          display: 'field',
+        },
+        type: [
+          {
+            coding: [
+              {
+                system: 'https://widercircle.com/fhir/CodeSystem/encounter-category',
+                code: FIELD_VISIT_CATEGORY_CODE,
+                display: 'CHW field visit',
+              },
+            ],
+            text:
+              FIELD_VISIT_LOCATIONS.find((l) => l.value === visitLocation)?.label ?? visitLocation,
+          },
+        ],
+        subject: {
+          reference: `Patient/${patientId}`,
+          display:
+            `${data.patient.name?.[0]?.given?.[0] ?? ''} ${data.patient.name?.[0]?.family ?? ''}`.trim() ||
+            'Member',
+        },
+        period: { start, end: start },
+        participant: profile
+          ? [
+              {
+                individual: {
+                  reference: `${profile.resourceType}/${profile.id}`,
+                  display:
+                    `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() ||
+                    'CHW',
+                },
+              },
+            ]
+          : undefined,
+        reasonCode: [
+          {
+            coding: [
+              {
+                system: 'https://widercircle.com/fhir/CodeSystem/visit-disposition',
+                code: visitDisposition,
+                display:
+                  FIELD_VISIT_DISPOSITIONS.find((d) => d.value === visitDisposition)?.label ??
+                  visitDisposition,
+              },
+            ],
+            text: visitNotes.trim() || undefined,
+          },
+        ],
+      };
+      const saved = await medplum.createResource<Encounter>(newVisit);
+      // CM-13 AC-4 — audit the field-visit log.
+      void emitAudit(medplum, {
+        action: 'fieldvisit.logged',
+        patientRef: { reference: `Patient/${patientId}` },
+        encounterRef: saved.id ? { reference: `Encounter/${saved.id}` } : undefined,
+        meta: { location: visitLocation, disposition: visitDisposition },
+      });
+      showNotification({ color: 'green', message: 'Field visit logged' });
+      closeVisitModal();
+      resetVisitForm();
+      await load();
+    } catch (err) {
+      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+    } finally {
+      setLoggingVisit(false);
+    }
+  }, [
+    patientId,
+    data.patient,
+    medplum,
+    visitDate,
+    visitLocation,
+    visitDisposition,
+    visitNotes,
+    closeVisitModal,
+    resetVisitForm,
+    load,
+  ]);
 
   const resetCaseForm = useCallback(() => {
     setCaseType('sdoh-food');
@@ -215,7 +360,14 @@ export function MemberContextPage(): JSX.Element {
         owner: profile ? createReference(profile) : undefined,
         extension: [{ url: CASE_TYPE_EXT, valueString: caseType }],
       };
-      await medplum.createResource<Task>(newCase);
+      const savedCase = await medplum.createResource<Task>(newCase);
+      // CM-21 AC-5 — DA-13 audit emission on case creation.
+      void emitAudit(medplum, {
+        action: 'case.created',
+        patientRef: { reference: `Patient/${patientId}` },
+        taskRef: savedCase.id ? { reference: `Task/${savedCase.id}` } : undefined,
+        meta: { caseType, priority: casePriority },
+      });
       showNotification({ color: 'green', message: 'Case created' });
       closeCaseModal();
       resetCaseForm();
@@ -252,6 +404,14 @@ export function MemberContextPage(): JSX.Element {
         <MemberKeyInfoHeader patient={data.patient} coverages={data.coverages} consentValid={consentValid} />
 
         <Group justify="flex-end" gap="sm">
+          <Button
+            variant="light"
+            color="teal"
+            leftSection={<IconMapPin size={14} />}
+            onClick={openVisitModal}
+          >
+            Log field visit
+          </Button>
           <Button
             variant="light"
             color="grape"
@@ -351,6 +511,71 @@ export function MemberContextPage(): JSX.Element {
 
           <Grid.Col span={12}>
             <SectionCard
+              title="Recent field visits"
+              icon={<IconMapPin size={16} />}
+              count={data.fieldVisits.length}
+            >
+              {data.fieldVisits.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No field visits logged yet. Click "Log field visit" above to capture a home,
+                  community, or phone touchpoint.
+                </Text>
+              ) : (
+                <Stack gap="xs">
+                  {data.fieldVisits.slice(0, 6).map((visit) => {
+                    const dispoCode = visit.reasonCode?.[0]?.coding?.[0]?.code ?? 'completed';
+                    const dispoLabel =
+                      FIELD_VISIT_DISPOSITIONS.find((d) => d.value === dispoCode)?.label ??
+                      dispoCode;
+                    const locationLabel = visit.type?.[0]?.text ?? 'Field visit';
+                    const note = visit.reasonCode?.[0]?.text;
+                    return (
+                      <Group
+                        key={visit.id}
+                        justify="space-between"
+                        wrap="nowrap"
+                        p="xs"
+                        style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
+                      >
+                        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                          <Text size="sm" fw={500}>
+                            {locationLabel}
+                          </Text>
+                          {note && (
+                            <Text size="xs" c="dimmed" truncate>
+                              {note}
+                            </Text>
+                          )}
+                          {visit.period?.start && (
+                            <Text size="xs" c="dimmed" ff="monospace">
+                              {formatDateTime(visit.period.start)} ·{' '}
+                              {visit.participant?.[0]?.individual?.display ?? 'CHW'}
+                            </Text>
+                          )}
+                        </Stack>
+                        <Badge
+                          color={
+                            dispoCode === 'completed'
+                              ? 'green'
+                              : dispoCode === 'partial'
+                                ? 'yellow'
+                                : 'gray'
+                          }
+                          size="xs"
+                          variant="light"
+                        >
+                          {dispoLabel}
+                        </Badge>
+                      </Group>
+                    );
+                  })}
+                </Stack>
+              )}
+            </SectionCard>
+          </Grid.Col>
+
+          <Grid.Col span={12}>
+            <SectionCard
               title="Open cases"
               icon={<IconBriefcase size={16} />}
               count={data.cases.filter((c) => c.status !== 'completed' && c.status !== 'cancelled').length}
@@ -442,6 +667,72 @@ export function MemberContextPage(): JSX.Element {
           </Text>
         </Group>
       </Stack>
+
+      {/* CM-13 AC-4: Log field visit. Creates an Encounter with class=FLD,
+          type carrying the location, reasonCode carrying the disposition,
+          and reasonCode.text carrying the free-text note. */}
+      <Modal
+        opened={visitModalOpened}
+        onClose={() => {
+          closeVisitModal();
+          resetVisitForm();
+        }}
+        title="Log field visit"
+        size="md"
+      >
+        <Stack gap="md">
+          <TextInput
+            type="datetime-local"
+            label="Date & time"
+            value={visitDate}
+            onChange={(e) => setVisitDate(e.currentTarget.value)}
+            required
+          />
+          <Select
+            label="Location"
+            data={FIELD_VISIT_LOCATIONS}
+            value={visitLocation}
+            onChange={(v) => setVisitLocation(v ?? 'home')}
+            allowDeselect={false}
+          />
+          <Select
+            label="Disposition"
+            data={FIELD_VISIT_DISPOSITIONS}
+            value={visitDisposition}
+            onChange={(v) => setVisitDisposition(v ?? 'completed')}
+            allowDeselect={false}
+          />
+          <Textarea
+            label="Notes"
+            placeholder="What you observed, follow-ups, anything the next CHW should know"
+            value={visitNotes}
+            onChange={(e) => setVisitNotes(e.currentTarget.value)}
+            minRows={3}
+            autosize
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="light"
+              onClick={() => {
+                closeVisitModal();
+                resetVisitForm();
+              }}
+              disabled={loggingVisit}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="teal"
+              leftSection={<IconMapPin size={14} />}
+              loading={loggingVisit}
+              disabled={loggingVisit}
+              onClick={handleLogFieldVisit}
+            >
+              Log field visit
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* CM-21: Manual case creation. Creates a Task with category=case-management
           + case-type extension. Surfaces in the Open cases card above. */}

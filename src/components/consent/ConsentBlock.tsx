@@ -16,6 +16,7 @@ import {
   evaluateConsentStatus,
   utf8ToBase64,
 } from '../../pages/ConsentCapturePage';
+import { emitAudit } from '../../utils/audit';
 
 type CaptureMethod = 'esig' | 'verbal';
 
@@ -158,7 +159,18 @@ export function ConsentBlock({
         ],
       };
 
-      await medplum.createResource<Consent>(consent);
+      const saved = await medplum.createResource<Consent>(consent);
+      // CD-05 AC-5 — DA-13 audit emission on every capture, with method + script version.
+      void emitAudit(medplum, {
+        action: 'consent.captured',
+        patientRef: { reference: `Patient/${patientId}`, display: patientLabel },
+        consentRef: saved.id ? { reference: `Consent/${saved.id}` } : undefined,
+        meta: {
+          method,
+          scriptVersion: CONSENT_SCRIPT_VERSION,
+          category: CONSENT_CATEGORY_CODE,
+        },
+      });
       showNotification({
         color: 'green',
         message: `Consent captured (${method === 'esig' ? 'e-sig' : 'verbal'})`,

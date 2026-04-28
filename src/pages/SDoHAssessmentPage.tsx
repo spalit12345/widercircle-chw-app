@@ -21,9 +21,16 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconAlertTriangle, IconCheck, IconHeartHandshake } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { emitAudit } from '../utils/audit';
 
 type QuestionType = 'single' | 'multi' | 'scale' | 'text';
 type RiskRule = { answer: string; caseType: string };
+// CD-19 AC-3 — branching: a follow-up question reveals when one of the listed
+// `whenAnswers` is the chosen answer to the parent question.
+export interface SdohBranch {
+  whenAnswers: string[];
+  follow: SdohQuestion;
+}
 
 export interface SdohQuestion {
   id: string;
@@ -32,6 +39,7 @@ export interface SdohQuestion {
   type: QuestionType;
   options?: string[];
   risks?: RiskRule[];
+  branches?: SdohBranch[];
 }
 
 export interface SdohSection {
@@ -78,6 +86,24 @@ export const DEFAULT_SDOH_SECTIONS: SdohSection[] = [
         risks: [
           { answer: 'I have housing but worried about losing it', caseType: 'Housing instability' },
           { answer: 'I do not have housing', caseType: 'Housing crisis' },
+        ],
+        // CD-19 AC-3 — branching: when the member is worried about losing
+        // housing or doesn't have housing, ask the follow-up so the CHW can
+        // route the right Housing case (eviction prevention vs shelter
+        // placement). Hidden when housing is stable.
+        branches: [
+          {
+            whenAnswers: ['I have housing but worried about losing it', 'I do not have housing'],
+            follow: {
+              id: 'housing_duration',
+              text: 'How long has housing been unstable for you?',
+              type: 'single',
+              options: ['Less than 30 days', '1–3 months', '3–12 months', 'More than a year'],
+              risks: [
+                { answer: 'More than a year', caseType: 'Long-term housing case' },
+              ],
+            },
+          },
         ],
       },
     ],
@@ -164,10 +190,28 @@ export const DEFAULT_SDOH_SECTIONS: SdohSection[] = [
 
 type Answers = Record<string, string | string[] | undefined>;
 
+// CD-19 AC-3 — return the questions that are *currently visible* given the
+// answers, walking branches whose whenAnswers match the parent's answer.
+export const visibleQuestions = (questions: SdohQuestion[], answers: Answers): SdohQuestion[] => {
+  const out: SdohQuestion[] = [];
+  for (const q of questions) {
+    out.push(q);
+    if (!q.branches) continue;
+    const a = answers[q.id];
+    const values = Array.isArray(a) ? a : a ? [a] : [];
+    for (const branch of q.branches) {
+      if (values.some((v) => branch.whenAnswers.includes(v))) {
+        out.push(...visibleQuestions([branch.follow], answers));
+      }
+    }
+  }
+  return out;
+};
+
 export const triggeredCases = (sections: SdohSection[], answers: Answers): string[] => {
   const cases: string[] = [];
   for (const section of sections) {
-    for (const q of section.questions) {
+    for (const q of visibleQuestions(section.questions, answers)) {
       if (!q.risks) continue;
       const answer = answers[q.id];
       if (!answer) continue;
@@ -183,13 +227,13 @@ export const triggeredCases = (sections: SdohSection[], answers: Answers): strin
   return cases;
 };
 
-export const totalQuestions = (sections: SdohSection[]): number =>
-  sections.reduce((n, s) => n + s.questions.length, 0);
+export const totalQuestions = (sections: SdohSection[], answers: Answers): number =>
+  sections.reduce((n, s) => n + visibleQuestions(s.questions, answers).length, 0);
 
 export const answeredCount = (sections: SdohSection[], answers: Answers): number => {
   let n = 0;
   for (const section of sections) {
-    for (const q of section.questions) {
+    for (const q of visibleQuestions(section.questions, answers)) {
       const a = answers[q.id];
       if (Array.isArray(a) ? a.length > 0 : typeof a === 'string' && a.length > 0) {
         n += 1;
@@ -218,7 +262,7 @@ const buildQuestionnaireResponse = (
   const items: QuestionnaireResponseItem[] = sections.map((section) => ({
     linkId: section.id,
     text: section.title,
-    item: section.questions.map((q) => {
+    item: visibleQuestions(section.questions, answers).map((q) => {
       const a = answers[q.id];
       const values = Array.isArray(a) ? a : a ? [a] : [];
       return {
@@ -266,7 +310,7 @@ export function SDoHAssessmentPage(): JSX.Element {
   const [startedAt] = useState<string>(() => new Date().toISOString());
 
   const sections = DEFAULT_SDOH_SECTIONS;
-  const total = totalQuestions(sections);
+  const total = totalQuestions(sections, answers);
   const answered = answeredCount(sections, answers);
   const triggered = useMemo(() => triggeredCases(sections, answers), [sections, answers]);
 
@@ -336,6 +380,26 @@ export function SDoHAssessmentPage(): JSX.Element {
       const created = taskCreations.filter((r) => r.ok).length;
       const failed = taskCreations.length - created;
       setSubmittedResponse(saved);
+      // CD-19 AC-6 — DA-13 audit on submit + per triggered case.
+      const patientRef = { reference: `Patient/${selectedPatient}`, display: patientLabel };
+      void emitAudit(medplum, {
+        action: 'sdoh.submitted',
+        patientRef,
+        questionnaireResponseRef: saved.id
+          ? { reference: `QuestionnaireResponse/${saved.id}` }
+          : undefined,
+        meta: { triggeredCount: triggered.length, answeredCount: Object.keys(answers).length },
+      });
+      for (const result of taskCreations) {
+        if (result.ok) {
+          void emitAudit(medplum, {
+            action: 'sdoh.case-triggered',
+            patientRef,
+            taskRef: result.task.id ? { reference: `Task/${result.task.id}` } : undefined,
+            meta: { caseType: result.caseType },
+          });
+        }
+      }
       showNotification({
         color: failed > 0 ? 'yellow' : 'green',
         message:
@@ -429,7 +493,7 @@ export function SDoHAssessmentPage(): JSX.Element {
               {section.title}
             </Title>
             <Stack gap="md">
-              {section.questions.map((q) => {
+              {visibleQuestions(section.questions, answers).map((q) => {
                 const answer = answers[q.id];
                 const highRisk = isAnswerHighRisk(q, answer);
                 return (

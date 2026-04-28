@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import type { CarePlan, MedplumClient } from '@medplum/core';
-import type { Reference } from '@medplum/fhirtypes';
+import type { MedplumClient } from '@medplum/core';
+import type { CarePlan, Reference } from '@medplum/fhirtypes';
 
 /**
  * Looks up a patient's most-recent active CarePlan and returns a
