@@ -34,6 +34,7 @@ import { showNotification } from '@mantine/notifications';
 import { normalizeErrorString } from '@medplum/core';
 import type {
   CarePlan,
+  Communication,
   Consent,
   Observation,
   Patient,
@@ -47,6 +48,7 @@ import {
   IconClock,
   IconHeartHandshake,
   IconLock,
+  IconPhone,
   IconSearch,
   IconUsers,
 } from '@tabler/icons-react';
@@ -58,12 +60,18 @@ import {
   CONSENT_EXPIRATION_MONTHS,
   evaluateConsentStatus,
 } from './ConsentCapturePage';
+import {
+  ECM_APPROACHING_CAP_AT,
+  ECM_CAP_DEFAULT,
+  ECM_CATEGORY_CODE,
+  evaluateEcmStatus,
+} from '../utils/ecm';
 
 const CCM_FIRST_THRESHOLD_MIN = 20; // 99490
 const CCM_APPROACHING_MIN = 18;
 const SDOH_TRIGGERED_CASE_EXT = 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case';
 
-type FilterId = 'all' | 'threshold' | 'noPlan' | 'noConsent' | 'overdue' | 'sdoh';
+type FilterId = 'all' | 'threshold' | 'noPlan' | 'noConsent' | 'overdue' | 'sdoh' | 'ecmCap';
 
 interface CaseloadRow {
   patient: Patient;
@@ -73,6 +81,10 @@ interface CaseloadRow {
   consentValid: boolean;
   overdueTasks: number;
   sdohTriggers: number;
+  ecmBillable: number;
+  ecmCapReached: boolean;
+  ecmApproachingCap: boolean;
+  ecmWindowClosed: boolean;
 }
 
 const formatPatientName = (p: Patient): string => {
@@ -116,7 +128,7 @@ export function CaseloadPage(): JSX.Element {
     try {
       const monthStart = startOfMonthIso();
       const today = todayIso();
-      const [patients, carePlans, consents, observations, tasks, qrs] = await Promise.all([
+      const [patients, carePlans, consents, observations, tasks, qrs, ecmComms] = await Promise.all([
         medplum.searchResources('Patient', '_count=50&_sort=-_lastUpdated'),
         medplum.searchResources('CarePlan', 'status=active&_count=200&_sort=-_lastUpdated'),
         medplum.searchResources('Consent', 'status=active&_count=300&_sort=-_lastUpdated'),
@@ -131,6 +143,10 @@ export function CaseloadPage(): JSX.Element {
         medplum.searchResources(
           'QuestionnaireResponse',
           `status=completed&_count=200&_sort=-authored`
+        ),
+        medplum.searchResources(
+          'Communication',
+          `category=${ECM_CATEGORY_CODE}&_count=500&_sort=-sent`
         ),
       ]);
 
@@ -182,6 +198,15 @@ export function CaseloadPage(): JSX.Element {
         }
       }
 
+      const ecmByPatient = new Map<string, Communication[]>();
+      for (const c of ecmComms as Communication[]) {
+        const id = patientIdFromRef(c.subject?.reference);
+        if (!id) continue;
+        const arr = ecmByPatient.get(id) ?? [];
+        arr.push(c);
+        ecmByPatient.set(id, arr);
+      }
+
       const computed: CaseloadRow[] = (patients as Patient[]).map((p) => {
         const id = p.id ?? '';
         const patientConsents = consentsByPatient.get(id) ?? [];
@@ -190,6 +215,7 @@ export function CaseloadPage(): JSX.Element {
         );
         const consentStatus = evaluateConsentStatus(filtered);
         const ccmMinutes = sumMinutes(minutesByPatient.get(id) ?? []);
+        const ecmStatus = evaluateEcmStatus(ecmByPatient.get(id) ?? [], p);
         return {
           patient: p,
           fullName: formatPatientName(p),
@@ -198,6 +224,10 @@ export function CaseloadPage(): JSX.Element {
           consentValid: consentStatus.state === 'on-file',
           overdueTasks: overdueByPatient.get(id) ?? 0,
           sdohTriggers: triggersByPatient.get(id) ?? 0,
+          ecmBillable: ecmStatus.billable,
+          ecmCapReached: ecmStatus.capReached,
+          ecmApproachingCap: ecmStatus.approachingCap,
+          ecmWindowClosed: ecmStatus.windowClosed,
         };
       });
 
@@ -232,6 +262,8 @@ export function CaseloadPage(): JSX.Element {
           return r.overdueTasks > 0;
         case 'sdoh':
           return r.sdohTriggers > 0;
+        case 'ecmCap':
+          return r.ecmCapReached || r.ecmApproachingCap;
         default:
           return true;
       }
@@ -248,6 +280,7 @@ export function CaseloadPage(): JSX.Element {
       noConsent: rows.filter((r) => !r.consentValid).length,
       overdue: rows.filter((r) => r.overdueTasks > 0).length,
       sdoh: rows.filter((r) => r.sdohTriggers > 0).length,
+      ecmCap: rows.filter((r) => r.ecmCapReached || r.ecmApproachingCap).length,
     }),
     [rows]
   );
@@ -297,6 +330,9 @@ export function CaseloadPage(): JSX.Element {
             </Chip>
             <Chip value="sdoh" color="yellow" variant="light">
               SDoH risk ({counts.sdoh})
+            </Chip>
+            <Chip value="ecmCap" color="orange" variant="light">
+              ECM cap ({counts.ecmCap})
             </Chip>
           </Group>
         </Chip.Group>
@@ -352,7 +388,17 @@ export function CaseloadPage(): JSX.Element {
 }
 
 function RiskPills({ row }: { row: CaseloadRow }): JSX.Element {
-  const { ccmMinutes, hasActivePlan, consentValid, overdueTasks, sdohTriggers } = row;
+  const {
+    ccmMinutes,
+    hasActivePlan,
+    consentValid,
+    overdueTasks,
+    sdohTriggers,
+    ecmBillable,
+    ecmCapReached,
+    ecmApproachingCap,
+    ecmWindowClosed,
+  } = row;
   const passedThreshold = ccmMinutes >= CCM_FIRST_THRESHOLD_MIN;
   const approaching = ccmMinutes >= CCM_APPROACHING_MIN && !passedThreshold;
   return (
@@ -383,6 +429,26 @@ function RiskPills({ row }: { row: CaseloadRow }): JSX.Element {
       {sdohTriggers > 0 && (
         <Badge color="yellow" size="sm" variant="light" leftSection={<IconHeartHandshake size={10} />}>
           {sdohTriggers} SDoH risk
+        </Badge>
+      )}
+      {ecmBillable > 0 && (
+        <Badge
+          color={ecmCapReached ? 'red' : ecmApproachingCap ? 'orange' : 'gray'}
+          size="sm"
+          variant="light"
+          leftSection={<IconPhone size={10} />}
+        >
+          ECM {ecmBillable}/{ECM_CAP_DEFAULT}
+          {ecmCapReached
+            ? ' · cap'
+            : ecmApproachingCap
+              ? ` · ${ECM_CAP_DEFAULT - ecmBillable} left`
+              : ''}
+        </Badge>
+      )}
+      {ecmWindowClosed && (
+        <Badge color="gray" size="sm" variant="light">
+          ECM window closed
         </Badge>
       )}
       {hasActivePlan && consentValid && overdueTasks === 0 && sdohTriggers === 0 && (
