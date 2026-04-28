@@ -10,18 +10,23 @@ import {
   Grid,
   Group,
   Loader,
+  Modal,
   Stack,
+  Switch,
   Text,
   Textarea,
   Title,
   Tooltip,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString, resolveId } from '@medplum/core';
 import type { Consent, Encounter, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
 import {
   IconAlertTriangle,
+  IconCircle,
+  IconCircleFilled,
   IconLock,
   IconMicrophone,
   IconMicrophoneOff,
@@ -35,11 +40,22 @@ import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ConsentBlock } from '../components/consent/ConsentBlock';
-import { CONSENT_CATEGORY_CODE, evaluateConsentStatus } from './ConsentCapturePage';
+import { CONSENT_CATEGORY_CODE, evaluateConsentStatus, utf8ToBase64 } from './ConsentCapturePage';
+
+const RECORDING_CATEGORY_CODE = 'call-recording';
+const RECORDING_SCRIPT_VERSION = 'call-recording-v1';
+const RECORDING_SCRIPT_TEXT = `This visit will be recorded for your care record. Wider Circle stores recordings securely and only your care team can access them. You can ask us to stop recording at any time, and your care does not depend on recording. Are you OK with the visit being recorded?`;
 
 const isConsentValid = (consents: Consent[], now: number = Date.now()): boolean => {
   const filtered = consents.filter((c) =>
     c.category?.some((cat) => cat.coding?.some((coding) => coding.code === CONSENT_CATEGORY_CODE))
+  );
+  return evaluateConsentStatus(filtered, now).state === 'on-file';
+};
+
+const isRecordingConsentValid = (consents: Consent[], now: number = Date.now()): boolean => {
+  const filtered = consents.filter((c) =>
+    c.category?.some((cat) => cat.coding?.some((coding) => coding.code === RECORDING_CATEGORY_CODE))
   );
   return evaluateConsentStatus(filtered, now).state === 'on-file';
 };
@@ -95,6 +111,11 @@ export function VisitWorkspacePage(): JSX.Element {
   const [encounter, setEncounter] = useState<Encounter | undefined>();
   const [patient, setPatient] = useState<Patient | undefined>();
   const [consentOnFile, setConsentOnFile] = useState<boolean>(false);
+  const [recordingConsent, setRecordingConsent] = useState<boolean>(false);
+  const [recording, setRecording] = useState<boolean>(false);
+  const [recordingPromptOpen, { open: openRecordingPrompt, close: closeRecordingPrompt }] = useDisclosure(false);
+  const [recordingScriptRead, setRecordingScriptRead] = useState<boolean>(false);
+  const [savingRecordingConsent, setSavingRecordingConsent] = useState<boolean>(false);
   const [error, setError] = useState<string | undefined>();
 
   const [micOn, setMicOn] = useState(true);
@@ -136,6 +157,7 @@ export function VisitWorkspacePage(): JSX.Element {
       setPatient(pat);
       const ok = isConsentValid(consents);
       setConsentOnFile(ok);
+      setRecordingConsent(isRecordingConsentValid(consents));
       if (enc.status === 'finished') {
         setPhase('ended');
         setStartedAt(enc.period?.start ? new Date(enc.period.start).getTime() : undefined);
@@ -239,6 +261,96 @@ export function VisitWorkspacePage(): JSX.Element {
   const patientName = patient
     ? `${patient.name?.[0]?.given?.join(' ') ?? ''} ${patient.name?.[0]?.family ?? ''}`.trim()
     : '—';
+
+  // CD-06 AC-6: recording requires recording-consent. If not on file, prompt
+  // the Provider to capture verbal recording consent before flipping the bit.
+  const startRecordingClick = useCallback(() => {
+    if (recording) {
+      return;
+    }
+    if (recordingConsent) {
+      setRecording(true);
+      showNotification({ color: 'red', message: 'Recording started · ● REC' });
+    } else {
+      setRecordingScriptRead(false);
+      openRecordingPrompt();
+    }
+  }, [recording, recordingConsent, openRecordingPrompt]);
+
+  const stopRecording = useCallback(() => {
+    setRecording(false);
+    showNotification({ color: 'gray', message: 'Recording stopped' });
+  }, []);
+
+  const captureRecordingConsent = useCallback(async () => {
+    if (!patient?.id || !recordingScriptRead) {
+      return;
+    }
+    const profile = medplum.getProfile();
+    const practitionerRef = profile ? `Practitioner/${profile.id}` : undefined;
+    const practitionerLabel = profile
+      ? `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() || 'Clinician'
+      : 'Clinician';
+    const signedAt = new Date().toISOString();
+    setSavingRecordingConsent(true);
+    try {
+      const consent: Consent = {
+        resourceType: 'Consent',
+        status: 'active',
+        scope: {
+          coding: [{ system: 'http://terminology.hl7.org/CodeSystem/consentscope', code: 'patient-privacy' }],
+        },
+        category: [
+          {
+            coding: [
+              {
+                system: 'https://widercircle.com/fhir/CodeSystem/consent-category',
+                code: RECORDING_CATEGORY_CODE,
+                display: 'Call recording',
+              },
+            ],
+          },
+        ],
+        patient: { reference: `Patient/${patient.id}`, display: patientName },
+        policyRule: {
+          coding: [
+            {
+              system: 'https://widercircle.com/fhir/CodeSystem/consent-policy',
+              code: RECORDING_CATEGORY_CODE,
+              display: 'Call recording attestation policy (v1)',
+            },
+          ],
+        },
+        dateTime: signedAt,
+        performer: practitionerRef
+          ? [{ reference: practitionerRef, display: practitionerLabel }]
+          : undefined,
+        sourceAttachment: {
+          contentType: 'text/plain',
+          title: `Verbal attestation — ${RECORDING_SCRIPT_VERSION}`,
+          data: utf8ToBase64(
+            `Script version: ${RECORDING_SCRIPT_VERSION}\nAttested by: ${practitionerLabel}\nTimestamp: ${signedAt}\nScript:\n${RECORDING_SCRIPT_TEXT}`
+          ),
+        },
+        extension: [
+          { url: 'https://widercircle.com/fhir/StructureDefinition/consent-method', valueString: 'verbal' },
+          {
+            url: 'https://widercircle.com/fhir/StructureDefinition/consent-script-version',
+            valueString: RECORDING_SCRIPT_VERSION,
+          },
+        ],
+      };
+      await medplum.createResource<Consent>(consent);
+      setRecordingConsent(true);
+      setRecording(true);
+      closeRecordingPrompt();
+      showNotification({ color: 'red', message: 'Recording consent captured · recording started' });
+    } catch (err) {
+      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+    } finally {
+      setSavingRecordingConsent(false);
+    }
+  }, [patient, patientName, recordingScriptRead, medplum, closeRecordingPrompt]);
 
   if (phase === 'checking') {
     return (
@@ -392,17 +504,40 @@ export function VisitWorkspacePage(): JSX.Element {
                       >
                         {videoOn ? <IconVideo size={18} /> : <IconVideoOff size={18} />}
                       </ActionIcon>
+                      {recording ? (
+                        <Button
+                          size="xs"
+                          variant="filled"
+                          color="red"
+                          leftSection={<IconCircle size={12} />}
+                          onClick={stopRecording}
+                          aria-label="Stop recording"
+                        >
+                          Stop recording
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="red"
+                          leftSection={<IconCircleFilled size={12} />}
+                          onClick={startRecordingClick}
+                          aria-label="Start recording"
+                        >
+                          Start recording
+                        </Button>
+                      )}
                       <Button size="xs" variant="light" color="yellow" onClick={togglePause}>
                         Simulate reconnect
                       </Button>
                     </Group>
                     <Badge
                       style={{ position: 'absolute', top: 12, right: 12 }}
-                      color="green"
+                      color={recording ? 'red' : 'green'}
                       variant="filled"
                       size="xs"
                     >
-                      ● HD
+                      {recording ? '● REC' : '● HD'}
                     </Badge>
                   </>
                 )}
@@ -484,6 +619,54 @@ export function VisitWorkspacePage(): JSX.Element {
           </Grid.Col>
         </Grid>
       </Stack>
+
+      {/* CD-06 AC-6: recording-consent prompt — gates Start recording when no
+          call-recording consent is on file for this patient. */}
+      <Modal
+        opened={recordingPromptOpen}
+        onClose={closeRecordingPrompt}
+        title="Recording consent"
+        size="md"
+        centered
+      >
+        <Stack gap="md">
+          <Alert color="red" variant="light" icon={<IconCircleFilled size={16} />}>
+            <Text size="sm">
+              Per CMS and WC policy, we cannot record this visit without the member's verbal consent.
+              Read the script aloud, confirm the member said yes, then capture below.
+            </Text>
+          </Alert>
+          <Card withBorder radius="md" padding="sm" style={{ background: 'var(--mantine-color-gray-0)' }}>
+            <Stack gap="xs">
+              <Text size="xs" fw={600} c="dimmed">
+                Verbal recording script ·{' '}
+                <span style={{ fontFamily: 'monospace' }}>{RECORDING_SCRIPT_VERSION}</span>
+              </Text>
+              <Text size="sm">{RECORDING_SCRIPT_TEXT}</Text>
+            </Stack>
+          </Card>
+          <Switch
+            label="I read this script and the member consented to recording"
+            checked={recordingScriptRead}
+            onChange={(e) => setRecordingScriptRead(e.currentTarget.checked)}
+            color="red"
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="light" onClick={closeRecordingPrompt} disabled={savingRecordingConsent}>
+              Cancel — don't record
+            </Button>
+            <Button
+              color="red"
+              leftSection={<IconCircleFilled size={14} />}
+              loading={savingRecordingConsent}
+              disabled={!recordingScriptRead || savingRecordingConsent}
+              onClick={captureRecordingConsent}
+            >
+              Capture consent &amp; start recording
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Document>
   );
 }
