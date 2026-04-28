@@ -12,6 +12,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createBrowserRouter } from 'react-router';
 import { App } from './App';
+import { RoleProvider } from './auth/RoleContext';
 import { TimerProvider } from './billing/TimerContext';
 // WC design tokens — exposes --wc-brand-*, --wc-base-*, --wc-error-*, etc.
 // to every component. Mantine theme below maps key slots to these tokens.
@@ -77,9 +78,11 @@ root.render(
     <MedplumProvider medplum={medplum} navigate={navigate}>
       <MantineProvider theme={theme}>
         <Notifications position="bottom-right" />
-        <TimerProvider>
-          <RouterProvider router={router} />
-        </TimerProvider>
+        <RoleProvider>
+          <TimerProvider>
+            <RouterProvider router={router} />
+          </TimerProvider>
+        </RoleProvider>
       </MantineProvider>
     </MedplumProvider>
   </StrictMode>

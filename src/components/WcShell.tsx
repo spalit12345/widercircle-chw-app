@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
+import { Menu, UnstyledButton } from '@mantine/core';
 import { useMedplumProfile } from '@medplum/react';
 import {
   IconActivity,
@@ -8,6 +9,7 @@ import {
   IconBriefcase2,
   IconCalendar,
   IconCash,
+  IconChevronDown,
   IconHome2,
   IconMessageCircle2,
   IconSearch,
@@ -16,6 +18,9 @@ import {
 import type { JSX, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
+import { useRole } from '../auth/RoleContext';
+import { ROLE_LABELS, ROLES, type Role } from '../auth/roles';
+import { recordRoleChange } from '../auth/audit';
 
 interface NavItem {
   id: string;
@@ -33,8 +38,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'messaging', label: 'Messaging', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Spaces') || p.startsWith('/Fax') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing') },
-  { id: 'reporting', label: 'Reporting', href: '/eligibility', Icon: IconActivity, match: (p) => p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking') },
-  { id: 'admin', label: 'Admin', href: '/integrations', Icon: IconAdjustmentsHorizontal, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') },
+  { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking') },
+  { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconAdjustmentsHorizontal, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin') },
 ];
 
 function LeftRail(): JSX.Element {
@@ -262,35 +267,63 @@ function TopBar(): JSX.Element {
 }
 
 function RoleBadge(): JSX.Element {
+  const { role, setRole } = useRole();
   const profile = useMedplumProfile();
-  const role = profile?.resourceType === 'Practitioner' ? 'CHW' : 'Wider Circle';
+
+  const onPick = (next: Role): void => {
+    if (next === role) return;
+    setRole(next);
+    recordRoleChange({ from: role, to: next, actor: profile }).catch(() => {
+      // Audit is best-effort; don't block the role switch on a failed write.
+    });
+  };
+
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        background: 'var(--wc-base-100, #F1F1EE)',
-        color: 'var(--wc-base-700)',
-        borderRadius: 30,
-        fontWeight: 600,
-        fontFamily: 'var(--wc-font-body, Inter, system-ui, sans-serif)',
-        fontSize: 12,
-        padding: '3px 10px',
-        height: 22,
-        lineHeight: 1,
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'var(--wc-base-500, #95938E)',
-        }}
-      />
-      {role} · Wider Circle
-    </span>
+    <Menu shadow="md" position="bottom-end" withinPortal>
+      <Menu.Target>
+        <UnstyledButton
+          aria-label="Switch active role"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'var(--wc-base-100, #F1F1EE)',
+            color: 'var(--wc-base-700)',
+            borderRadius: 30,
+            fontWeight: 600,
+            fontFamily: 'var(--wc-font-body, Inter, system-ui, sans-serif)',
+            fontSize: 12,
+            padding: '3px 10px',
+            height: 22,
+            lineHeight: 1,
+            cursor: 'pointer',
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--wc-brand-500, #F27321)',
+            }}
+          />
+          {ROLE_LABELS[role]}
+          <IconChevronDown size={12} stroke={2} />
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Demo role (DA-14)</Menu.Label>
+        {ROLES.map((r) => (
+          <Menu.Item
+            key={r}
+            onClick={() => onPick(r)}
+            color={r === role ? 'orange' : undefined}
+          >
+            {ROLE_LABELS[r]}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 

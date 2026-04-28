@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { Alert, Badge, Button, Card, Group, Loader, Progress, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Loader, NumberInput, Progress, Select, Stack, Text, Textarea, Title } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Observation, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconPlayerPause, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
+import { IconClockEdit, IconPlayerPause, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+const MANUAL_ENTRY_EXT = 'https://widercircle.com/fhir/StructureDefinition/manual-time-entry';
+const MANUAL_JUSTIFICATION_EXT = 'https://widercircle.com/fhir/StructureDefinition/manual-time-justification';
 
 // CMS CCM thresholds (CPT codes) — minutes of clinical staff time per calendar month
 export const CCM_THRESHOLDS: Array<{ code: string; minutes: number; label: string }> = [
@@ -66,6 +69,9 @@ export function TimeTrackingPage(): JSX.Element {
   const [startedAt, setStartedAt] = useState<number | undefined>();
   const [tickNow, setTickNow] = useState(Date.now());
   const [saving, setSaving] = useState(false);
+  const [manualMinutes, setManualMinutes] = useState<number | string>(15);
+  const [manualJustification, setManualJustification] = useState('');
+  const [savingManual, setSavingManual] = useState(false);
 
   useEffect(() => {
     medplum
@@ -169,6 +175,65 @@ export function TimeTrackingPage(): JSX.Element {
   const totalMinutes = useMemo(() => sumObservationMinutes(entries), [entries]);
   const progress = useMemo(() => evaluateThresholdProgress(totalMinutes), [totalMinutes]);
 
+  const submitManualEntry = useCallback(async () => {
+    if (!selectedPatient || !profile) return;
+    const minutes = typeof manualMinutes === 'string' ? Number(manualMinutes) : manualMinutes;
+    const justification = manualJustification.trim();
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      showNotification({ color: 'red', message: 'Minutes must be a positive number' });
+      return;
+    }
+    if (justification.length < 10) {
+      showNotification({
+        color: 'red',
+        message: 'Justification is required (≥ 10 characters) for manual entries',
+      });
+      return;
+    }
+    setSavingManual(true);
+    try {
+      const now = new Date();
+      const startedDate = new Date(now.getTime() - minutes * 60_000);
+      const payload: Observation = {
+        resourceType: 'Observation',
+        status: 'final',
+        code: {
+          coding: [
+            { system: 'https://widercircle.com/fhir/CodeSystem/time-tracking', code: 'ccm-minutes', display: 'CCM clinical staff time (minutes)' },
+          ],
+          text: 'CCM clinical staff time (manual entry)',
+        },
+        subject: { reference: `Patient/${selectedPatient}` },
+        effectivePeriod: {
+          start: startedDate.toISOString(),
+          end: now.toISOString(),
+        },
+        issued: now.toISOString(),
+        performer: [{ reference: `Practitioner/${profile.id}` }],
+        valueQuantity: {
+          value: minutes,
+          unit: 'min',
+          system: 'http://unitsofmeasure.org',
+          code: 'min',
+        },
+        note: [{ text: justification }],
+        extension: [
+          { url: MANUAL_ENTRY_EXT, valueBoolean: true },
+          { url: MANUAL_JUSTIFICATION_EXT, valueString: justification },
+        ],
+      };
+      await medplum.createResource<Observation>(payload);
+      showNotification({ color: 'green', message: `Manual entry · ${minutes} min logged with justification` });
+      setManualJustification('');
+      setManualMinutes(15);
+      await loadEntries(selectedPatient);
+    } catch (err) {
+      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+    } finally {
+      setSavingManual(false);
+    }
+  }, [selectedPatient, profile, manualMinutes, manualJustification, medplum, loadEntries]);
+
   if (loading) return <Document><Loader /></Document>;
 
   return (
@@ -234,6 +299,50 @@ export function TimeTrackingPage(): JSX.Element {
                     Current: {progress.currentThreshold.code} ({progress.currentThreshold.minutes} min · {progress.currentThreshold.label})
                   </Badge>
                 )}
+              </Stack>
+            </Card>
+
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Group gap={8}>
+                  <IconClockEdit size={18} />
+                  <Title order={5}>Manual time entry</Title>
+                  <Badge variant="light" color="orange">Justification required (AC-4)</Badge>
+                </Group>
+                <Text size="xs" c="dimmed">
+                  For after-the-fact entries when the stopwatch wasn't running. Audit trail captures the justification verbatim.
+                </Text>
+                <Group align="flex-end" wrap="nowrap" gap="md">
+                  <NumberInput
+                    label="Minutes"
+                    value={manualMinutes}
+                    onChange={(v) => setManualMinutes(v)}
+                    min={1}
+                    max={480}
+                    step={5}
+                    w={120}
+                  />
+                  <Textarea
+                    label="Justification"
+                    placeholder="Describe what work was done and why it wasn't tracked live (≥ 10 chars)"
+                    value={manualJustification}
+                    onChange={(e) => setManualJustification(e.currentTarget.value)}
+                    autosize
+                    minRows={2}
+                    style={{ flex: 1 }}
+                  />
+                </Group>
+                <Group>
+                  <Button
+                    color="orange"
+                    onClick={submitManualEntry}
+                    loading={savingManual}
+                    disabled={savingManual || manualJustification.trim().length < 10}
+                    leftSection={<IconClockEdit size={16} />}
+                  >
+                    Log manual entry
+                  </Button>
+                </Group>
               </Stack>
             </Card>
 

@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Loading, useMedplum, useMedplumProfile } from '@medplum/react';
 import type { JSX } from 'react';
-import { Suspense, useState } from 'react';
+import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
+import { RequirePermission } from './auth/RoleGate';
 import { TaskDetailsModal } from './components/tasks/TaskDetailsModal';
 import { hasDoseSpotIdentifier, hasScriptSureIdentifier } from './components/utils';
 import { WcShell } from './components/WcShell';
 import './index.css';
-
-const SETUP_DISMISSED_KEY = 'medplum-provider-setup-completed';
 
 import { EncounterChartPage } from './pages/encounter/EncounterChartPage';
 import { EncounterModal } from './pages/encounter/EncounterModal';
@@ -66,11 +65,13 @@ import { TodayPage } from './pages/TodayPage';
 import { VisitWorkspacePage } from './pages/VisitWorkspacePage';
 import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
 import { PublicConsentPage } from './pages/PublicConsentPage';
+import { RoleManagementPage } from './pages/RoleManagementPage';
+import { MemberContextPage } from './pages/MemberContextPage';
+import { ReferralsPage } from './pages/ReferralsPage';
 
 export function App(): JSX.Element | null {
   const medplum = useMedplum();
   const profile = useMedplumProfile();
-  const [setupDismissed] = useState(() => localStorage.getItem(SETUP_DISMISSED_KEY) === 'true');
 
   if (medplum.isLoading()) {
     return null;
@@ -90,20 +91,9 @@ export function App(): JSX.Element | null {
                 <Route index element={<SpacesPage />} />
                 <Route path=":topicId" element={<SpacesPage />} />
               </Route>
-              <Route
-                path="/"
-                element={
-                  <Navigate
-                    to={
-                      setupDismissed
-                        ? '/Patient?_count=20&_fields=name,email,gender&_sort=-_lastUpdated'
-                        : '/getstarted'
-                    }
-                    replace
-                  />
-                }
-              />
+              <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/Patient/new" element={<ResourceCreatePage />} />
+              <Route path="/members/:patientId" element={<MemberContextPage />} />
               <Route path="/Patient/:patientId" element={<PatientPage />}>
                 <Route path="careplan" element={<WCCarePlanPage />} />
                 <Route path="billing" element={<WCBillingPage />} />
@@ -152,15 +142,52 @@ export function App(): JSX.Element | null {
               <Route path="/sdoh" element={<SDoHAssessmentPage />} />
               <Route path="/consent" element={<ConsentCapturePage />} />
               <Route path="/encounters/:encounterId/workspace" element={<VisitWorkspacePage />} />
-              <Route path="/plan-of-care" element={<PlanOfCarePage />} />
+              <Route
+                path="/plan-of-care"
+                element={
+                  <RequirePermission permission="careplan.author">
+                    <PlanOfCarePage />
+                  </RequirePermission>
+                }
+              />
               <Route path="/plan-review" element={<PlanReviewPage />} />
               <Route path="/plan-edit" element={<PlanEditPage />} />
               <Route path="/time-tracking" element={<TimeTrackingPage />} />
               <Route path="/review-submission" element={<SubmitForReviewPage />} />
-              <Route path="/signoff-queue" element={<SignOffQueuePage />} />
-              <Route path="/billing-sync" element={<BillingSyncPage />} />
+              <Route
+                path="/signoff-queue"
+                element={
+                  <RequirePermission permission="queue.signoff">
+                    <SignOffQueuePage />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="/billing-sync"
+                element={
+                  <RequirePermission permission="billing.sync">
+                    <BillingSyncPage />
+                  </RequirePermission>
+                }
+              />
               <Route path="/my-tasks" element={<TaskDashboardPage />} />
               <Route path="/my-schedule" element={<CHWSchedulePage />} />
+              <Route
+                path="/referrals"
+                element={
+                  <RequirePermission permission="referrals.manage">
+                    <ReferralsPage />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="/admin/roles"
+                element={
+                  <RequirePermission permission="admin.roles">
+                    <RoleManagementPage />
+                  </RequirePermission>
+                }
+              />
               <Route path="/public/consent/:questionnaireId/:patientId" element={<PublicConsentPage />} />
               <Route path="/Fax/Communication" element={<FaxPage />} />
               <Route path="/Fax/Communication/:faxId" element={<FaxPage />} />
@@ -170,7 +197,14 @@ export function App(): JSX.Element | null {
               <Route path="/signin" element={<SignInPage />} />
               {hasDoseSpot && <Route path="/dosespot" element={<DoseSpotNotificationsPage />} />}
               {hasScriptSure && <Route path="/scriptsure" element={<ScriptSurePage />} />}
-              <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route
+                path="/integrations"
+                element={
+                  <RequirePermission permission="admin.integrations">
+                    <IntegrationsPage />
+                  </RequirePermission>
+                }
+              />
               <Route path="/:resourceType" element={<SearchPage />} />
               <Route path="/:resourceType/new" element={<ResourceCreatePage />} />
               <Route path="/:resourceType/:id" element={<ResourcePage />}>

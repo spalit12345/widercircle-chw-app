@@ -20,6 +20,9 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconLock } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SignaturePad } from '../components/SignaturePad';
+
+const SIGNATURE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-signature';
 
 // Plan acknowledgments are recorded as Communication resources with
 // category.coding.code='plan-acknowledgment'. Plain FHIR Communication works
@@ -107,6 +110,7 @@ export function PlanReviewPage(): JSX.Element {
   const [acks, setAcks] = useState<Communication[]>([]);
   const [loading, setLoading] = useState(true);
   const [acking, setAcking] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
 
   const loadPatients = useCallback(async () => {
     try {
@@ -167,8 +171,13 @@ export function PlanReviewPage(): JSX.Element {
 
   const ackThisPlan = useCallback(async () => {
     if (!plan?.id || !currentUserRef) return;
+    if (!signatureDataUrl) {
+      showNotification({ color: 'red', message: 'Please capture a signature before acknowledging.' });
+      return;
+    }
     setAcking(true);
     try {
+      const now = new Date().toISOString();
       const ack: Communication = {
         resourceType: 'Communication',
         status: 'completed',
@@ -184,24 +193,43 @@ export function PlanReviewPage(): JSX.Element {
           },
         ],
         subject: plan.subject,
-        sent: new Date().toISOString(),
+        sent: now,
         sender: { reference: currentUserRef, display: currentUserLabel },
         basedOn: [{ reference: `CarePlan/${plan.id}` }],
         payload: [
           {
-            contentString: `Plan of Care acknowledged by ${currentUserLabel} on ${new Date().toISOString()}.`,
+            contentString: `Plan of Care acknowledged by ${currentUserLabel} on ${now}.`,
+          },
+          {
+            contentAttachment: {
+              contentType: 'image/png',
+              creation: now,
+              title: `${currentUserLabel} signature`,
+              data: signatureDataUrl.replace(/^data:image\/png;base64,/, ''),
+            },
+          },
+        ],
+        extension: [
+          {
+            url: SIGNATURE_EXT,
+            valueAttachment: {
+              contentType: 'image/png',
+              creation: now,
+              data: signatureDataUrl.replace(/^data:image\/png;base64,/, ''),
+            },
           },
         ],
       };
       await medplum.createResource<Communication>(ack);
-      showNotification({ color: 'green', message: 'Plan acknowledged' });
+      showNotification({ color: 'green', message: 'Plan acknowledged with signature' });
+      setSignatureDataUrl(null);
       await loadPlan(selectedPatient);
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {
       setAcking(false);
     }
-  }, [plan, currentUserRef, currentUserLabel, medplum, selectedPatient, loadPlan]);
+  }, [plan, currentUserRef, currentUserLabel, medplum, selectedPatient, loadPlan, signatureDataUrl]);
 
   const { mine, others } = useMemo(() => partitionForReview(items), [items]);
 
@@ -319,27 +347,38 @@ export function PlanReviewPage(): JSX.Element {
 
             <Divider />
 
-            <Group justify="space-between" wrap="wrap">
-              <Text size="xs" c="dimmed" style={{ maxWidth: 400 }}>
-                Acknowledge only after reviewing with the member. Acknowledgments are immutable and notify the
-                Provider.
-              </Text>
-              {alreadyAcked ? (
+            {alreadyAcked ? (
+              <Group justify="space-between" wrap="wrap">
+                <Text size="xs" c="dimmed" style={{ maxWidth: 400 }}>
+                  You already acknowledged this plan. Acknowledgments are immutable.
+                </Text>
                 <Badge color="green" variant="light" leftSection={<IconCheck size={12} />} size="lg">
                   You acknowledged this plan
                 </Badge>
-              ) : (
-                <Button
-                  color="blue"
-                  leftSection={<IconCheck size={16} />}
-                  onClick={ackThisPlan}
-                  loading={acking}
-                  disabled={acking || !plan}
-                >
-                  Acknowledge with member
-                </Button>
-              )}
-            </Group>
+              </Group>
+            ) : (
+              <Card withBorder radius="md" padding="md">
+                <Stack gap="sm">
+                  <Title order={5}>Acknowledge with member signature</Title>
+                  <Text size="xs" c="dimmed">
+                    Capture the reviewer's signature, then acknowledge. The PNG is stored on the Communication
+                    resource for audit. Acknowledgments are immutable and notify the Provider.
+                  </Text>
+                  <SignaturePad onChange={setSignatureDataUrl} />
+                  <Group justify="flex-end">
+                    <Button
+                      color="blue"
+                      leftSection={<IconCheck size={16} />}
+                      onClick={ackThisPlan}
+                      loading={acking}
+                      disabled={acking || !plan || !signatureDataUrl}
+                    >
+                      Acknowledge with signature
+                    </Button>
+                  </Group>
+                </Stack>
+              </Card>
+            )}
 
             {acks.length > 0 && (
               <Card withBorder radius="md" padding="md">
@@ -349,19 +388,35 @@ export function PlanReviewPage(): JSX.Element {
                     <Badge variant="light">{acks.length}</Badge>
                   </Group>
                   <Stack gap="xs">
-                    {acks.slice(0, 10).map((a) => (
-                      <Group key={a.id} justify="space-between" p="xs" wrap="nowrap">
-                        <Group gap="sm" wrap="nowrap">
-                          <Badge color="green" variant="light" size="sm">
-                            {a.status ?? 'completed'}
-                          </Badge>
-                          <Text size="sm">{a.sender?.display ?? a.sender?.reference ?? '—'}</Text>
+                    {acks.slice(0, 10).map((a) => {
+                      const sig = a.payload?.find((p) => p.contentAttachment?.contentType === 'image/png');
+                      const data = sig?.contentAttachment?.data;
+                      return (
+                        <Group key={a.id} justify="space-between" p="xs" wrap="nowrap">
+                          <Group gap="sm" wrap="nowrap">
+                            <Badge color="green" variant="light" size="sm">
+                              {a.status ?? 'completed'}
+                            </Badge>
+                            <Text size="sm">{a.sender?.display ?? a.sender?.reference ?? '—'}</Text>
+                            {data && (
+                              <img
+                                src={`data:image/png;base64,${data}`}
+                                alt="Signature"
+                                style={{
+                                  height: 32,
+                                  border: '1px solid var(--mantine-color-gray-3)',
+                                  borderRadius: 4,
+                                  background: '#fff',
+                                }}
+                              />
+                            )}
+                          </Group>
+                          <Text size="xs" c="dimmed" ff="monospace">
+                            {a.sent ? formatDateTime(a.sent) : ''}
+                          </Text>
                         </Group>
-                        <Text size="xs" c="dimmed" ff="monospace">
-                          {a.sent ? formatDateTime(a.sent) : ''}
-                        </Text>
-                      </Group>
-                    ))}
+                      );
+                    })}
                   </Stack>
                 </Stack>
               </Card>

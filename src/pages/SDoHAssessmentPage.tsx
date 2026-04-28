@@ -16,7 +16,7 @@ import {
 } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
-import type { Patient, QuestionnaireResponse, QuestionnaireResponseItem } from '@medplum/fhirtypes';
+import type { Patient, QuestionnaireResponse, QuestionnaireResponseItem, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
 import { IconAlertTriangle, IconCheck, IconHeartHandshake } from '@tabler/icons-react';
 import type { JSX } from 'react';
@@ -312,10 +312,36 @@ export function SDoHAssessmentPage(): JSX.Element {
         new Date().toISOString()
       );
       const saved = await medplum.createResource<QuestionnaireResponse>(payload);
+      // CD-19 AC-2 — auto-create a Task per triggered risk so the case shows up
+      // in the CHW queue (delegates to CM-21 for full Case resource in v2).
+      const taskCreations = await Promise.all(
+        triggered.map((caseType) =>
+          medplum
+            .createResource<Task>({
+              resourceType: 'Task',
+              status: 'requested',
+              intent: 'order',
+              priority: caseType.toLowerCase().includes('crisis') ? 'urgent' : 'routine',
+              code: { text: caseType },
+              description: `SDoH risk-triggered: ${caseType}`,
+              focus: saved.id ? { reference: `QuestionnaireResponse/${saved.id}` } : undefined,
+              for: { reference: `Patient/${selectedPatient}`, display: patientLabel },
+              requester: practitionerRef ? { reference: practitionerRef, display: practitionerLabel } : undefined,
+              authoredOn: new Date().toISOString(),
+            })
+            .then((t) => ({ ok: true as const, task: t, caseType }))
+            .catch((err) => ({ ok: false as const, err, caseType }))
+        )
+      );
+      const created = taskCreations.filter((r) => r.ok).length;
+      const failed = taskCreations.length - created;
       setSubmittedResponse(saved);
       showNotification({
-        color: 'green',
-        message: `Assessment submitted · ${triggered.length} case${triggered.length === 1 ? '' : 's'} triggered`,
+        color: failed > 0 ? 'yellow' : 'green',
+        message:
+          failed > 0
+            ? `Assessment submitted · ${created} of ${taskCreations.length} cases created (${failed} failed)`
+            : `Assessment submitted · ${created} case${created === 1 ? '' : 's'} created in your queue`,
       });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
