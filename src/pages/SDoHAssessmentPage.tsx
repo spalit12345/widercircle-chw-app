@@ -6,19 +6,23 @@ import {
   Button,
   Card,
   Chip,
+  CopyButton,
   Group,
+  Modal,
   Progress,
   Select,
   Stack,
   Text,
   Textarea,
+  TextInput,
   Title,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Patient, QuestionnaireResponse, QuestionnaireResponseItem, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconAlertTriangle, IconCheck, IconHeartHandshake } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconCopy, IconHeartHandshake, IconSend } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { emitAudit } from '../utils/audit';
@@ -308,6 +312,17 @@ export function SDoHAssessmentPage(): JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [submittedResponse, setSubmittedResponse] = useState<QuestionnaireResponse | undefined>();
   const [startedAt] = useState<string>(() => new Date().toISOString());
+  const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
+
+  // CD-19 §3.1 — preferred path: patient fills on their phone via the public
+  // link. CHW-fill is the fallback when the member isn't reachable. Both
+  // submit the same QuestionnaireResponse downstream.
+  const publicLink = selectedPatient
+    ? `${window.location.origin}/public/sdoh/${selectedPatient}`
+    : '';
+  const smsBody = publicLink
+    ? `Hi, this is your Wider Circle care team. Please take a quick health check-in here: ${publicLink}`
+    : '';
 
   const sections = DEFAULT_SDOH_SECTIONS;
   const total = totalQuestions(sections, answers);
@@ -477,15 +492,33 @@ export function SDoHAssessmentPage(): JSX.Element {
           </Stack>
         </Card>
 
-        <Select
-          label="Member"
-          placeholder="Pick a member"
-          data={patients}
-          value={selectedPatient}
-          onChange={(v) => setSelectedPatient(v ?? '')}
-          searchable
-          required
-        />
+        <Group align="flex-end" gap="sm" wrap="nowrap">
+          <Select
+            label="Member"
+            placeholder="Pick a member"
+            data={patients}
+            value={selectedPatient}
+            onChange={(v) => setSelectedPatient(v ?? '')}
+            searchable
+            required
+            style={{ flex: 1 }}
+          />
+          <Button
+            variant="light"
+            color="grape"
+            leftSection={<IconSend size={14} />}
+            disabled={!selectedPatient}
+            onClick={openShare}
+          >
+            Send link to member
+          </Button>
+        </Group>
+
+        <Alert color="blue" variant="light" icon={<IconHeartHandshake size={16} />}>
+          <Text size="sm">
+            <b>Preferred path:</b> send the assessment link to the member by SMS so they fill it on their phone (CD-19 §3.1). CHW-fill below is the fallback when the member is unreachable.
+          </Text>
+        </Alert>
 
         {sections.map((section) => (
           <Card key={section.id} withBorder radius="md" padding="md">
@@ -610,6 +643,63 @@ export function SDoHAssessmentPage(): JSX.Element {
           </Stack>
         </Card>
       </Stack>
+
+      <Modal opened={shareOpened} onClose={closeShare} title="Send assessment to member" size="md">
+        <Stack gap="md">
+          <Alert color="blue" variant="light" icon={<IconSend size={16} />}>
+            <Text size="sm">
+              Generate a link the member can fill from their phone. Closes the §3.1 spec gap that says the
+              assessment must be sent by portal/SMS, not administered by the CHW.
+            </Text>
+          </Alert>
+
+          <Stack gap={4}>
+            <Text size="xs" fw={600} c="dimmed">Public link</Text>
+            <Group gap="xs" wrap="nowrap">
+              <TextInput value={publicLink} readOnly style={{ flex: 1 }} ff="monospace" />
+              <CopyButton value={publicLink} timeout={1500}>
+                {({ copied, copy }) => (
+                  <Button
+                    variant="light"
+                    leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                    onClick={copy}
+                  >
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
+                )}
+              </CopyButton>
+            </Group>
+          </Stack>
+
+          <Stack gap={4}>
+            <Text size="xs" fw={600} c="dimmed">SMS body (paste into your messaging tool)</Text>
+            <Group gap="xs" wrap="nowrap">
+              <TextInput value={smsBody} readOnly style={{ flex: 1 }} />
+              <CopyButton value={smsBody} timeout={1500}>
+                {({ copied, copy }) => (
+                  <Button
+                    color="grape"
+                    leftSection={copied ? <IconCheck size={14} /> : <IconSend size={14} />}
+                    onClick={() => {
+                      copy();
+                      showNotification({
+                        color: 'grape',
+                        message: 'SMS body copied. Twilio integration lands with CM-12; for the demo paste this into your messaging tool.',
+                      });
+                    }}
+                  >
+                    {copied ? 'Copied' : 'Send via SMS'}
+                  </Button>
+                )}
+              </CopyButton>
+            </Group>
+          </Stack>
+
+          <Text size="xs" c="dimmed">
+            When the member submits, their response will appear under their Member 360 → Assessments tab.
+          </Text>
+        </Stack>
+      </Modal>
     </Document>
   );
 }
