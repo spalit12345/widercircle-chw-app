@@ -168,6 +168,15 @@ export function BillingDashboardPage(): JSX.Element {
           </Group>
         </Group>
 
+        <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Text size="sm">
+            <b>Demo build · Sync to Candid is simulated.</b> Per CD-10 §4 the real Candid 837P
+            payload + eligibility pre-check land with the vendor contract; the dashboard above is
+            real Medplum data, the &quot;Sync&quot; button writes a Communication record but does
+            not transmit to Candid in this build.
+          </Text>
+        </Alert>
+
         {/* Summary stats */}
         <Group gap="xl">
           <Stack gap={0}>

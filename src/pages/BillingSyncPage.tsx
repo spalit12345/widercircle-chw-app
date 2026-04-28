@@ -158,6 +158,15 @@ export function BillingSyncPage(): JSX.Element {
           </Button>
         </Group>
 
+        <Alert color="yellow" variant="light">
+          <Text size="sm">
+            <b>Demo build · simulated Candid sync.</b> Each &quot;Sync&quot; click writes a
+            Communication record to Medplum that records what would be transmitted (CPT, member,
+            duration, provider). The real Candid 837P call lands with the vendor contract per
+            CD-10 §4.
+          </Text>
+        </Alert>
+
         <Card withBorder radius="md" padding="md">
           <Group justify="space-between" align="flex-end">
             <Stack gap={2}>

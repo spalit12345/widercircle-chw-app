@@ -7,9 +7,10 @@
 // the demo can run end-to-end. Real rule lookup belongs to DA-08; that
 // integration lands separately.
 
-import type { Communication, Patient } from '@medplum/fhirtypes';
+import type { Communication, Consent, Patient } from '@medplum/fhirtypes';
 
 export const ECM_CATEGORY_CODE = 'ecm-outreach';
+export const ECM_CONSENT_CATEGORY_CODE = 'ecm-enrollment';
 export const ECM_BILLABLE_EXT = 'https://widercircle.com/fhir/StructureDefinition/ecm-billable';
 export const ECM_CHANNEL_EXT = 'https://widercircle.com/fhir/StructureDefinition/ecm-channel';
 export const ECM_OUTCOME_EXT = 'https://widercircle.com/fhir/StructureDefinition/ecm-outcome';
@@ -65,7 +66,20 @@ export interface EcmStatus {
   approachingCap: boolean;
   /** Days remaining in the window (0 when closed or past). */
   daysRemaining: number;
+  /** CM-22 AC-3 — true when an active ECM enrollment Consent is on file. */
+  consentOnFile: boolean;
+  /**
+   * Of the in-window attempts, how many were captured BEFORE the active ECM
+   * consent date and therefore must be flagged non-billable per spec — they
+   * are still tracked for compliance.
+   */
+  preConsentAttempts: number;
 }
+
+export const isEcmConsent = (c: Consent): boolean =>
+  Boolean(
+    c.category?.some((cat) => cat.coding?.some((coding) => coding.code === ECM_CONSENT_CATEGORY_CODE))
+  );
 
 export const isEcmCommunication = (c: Communication): boolean =>
   Boolean(
@@ -83,7 +97,18 @@ export const ecmAttemptIsBillable = (c: Communication): boolean => {
 export const evaluateEcmStatus = (
   attempts: Communication[],
   patient: Patient | undefined,
-  options?: { cap?: number; windowDays?: number; now?: number }
+  options?: {
+    cap?: number;
+    windowDays?: number;
+    now?: number;
+    /**
+     * CM-22 AC-3 — pass the patient's Consent records so we can filter to the
+     * ECM-enrollment ones and disqualify pre-consent attempts from billable.
+     * Optional for backwards-compat; when omitted, consentOnFile defaults to
+     * true so existing call sites keep their old behavior.
+     */
+    consents?: Consent[];
+  }
 ): EcmStatus => {
   const cap = options?.cap ?? ECM_CAP_DEFAULT;
   const windowDays = options?.windowDays ?? ECM_WINDOW_DAYS_DEFAULT;
@@ -103,7 +128,47 @@ export const evaluateEcmStatus = (
     return Number.isFinite(sentMs) && sentMs >= windowStartMs && sentMs <= windowEndMs;
   });
 
-  const billable = inWindow.filter(ecmAttemptIsBillable).length;
+  // CM-22 AC-3 — find the earliest active ECM enrollment Consent.
+  let earliestEcmConsentMs: number | undefined;
+  let consentOnFile = false;
+  if (options?.consents !== undefined) {
+    const ecmConsents = options.consents
+      .filter((c) => c.status === 'active')
+      .filter(isEcmConsent)
+      .sort((a, b) => (a.dateTime ?? '').localeCompare(b.dateTime ?? ''));
+    if (ecmConsents.length > 0 && ecmConsents[0].dateTime) {
+      earliestEcmConsentMs = Date.parse(ecmConsents[0].dateTime);
+      consentOnFile = earliestEcmConsentMs <= now;
+    }
+  } else {
+    // Backwards compat — when callers don't pass consents, treat as on-file.
+    consentOnFile = true;
+  }
+
+  // Pre-consent attempts: in window, with sent date < earliest ECM consent.
+  // Spec: "ECM consent is captured and required before any attempt is
+  // billable; attempts before consent are tracked as non-billable but logged
+  // for compliance."
+  const preConsentAttempts = earliestEcmConsentMs
+    ? inWindow.filter((c) => {
+        const sentMs = c.sent ? Date.parse(c.sent) : Number.NaN;
+        return Number.isFinite(sentMs) && sentMs < (earliestEcmConsentMs as number);
+      }).length
+    : options?.consents !== undefined
+      ? inWindow.length // consents passed but none active → all attempts pre-consent
+      : 0;
+
+  const billable = inWindow.filter((c) => {
+    if (!ecmAttemptIsBillable(c)) return false;
+    if (!consentOnFile) return false;
+    if (earliestEcmConsentMs !== undefined) {
+      const sentMs = c.sent ? Date.parse(c.sent) : Number.NaN;
+      if (Number.isFinite(sentMs) && sentMs < (earliestEcmConsentMs as number)) {
+        return false;
+      }
+    }
+    return true;
+  }).length;
   const nonBillable = inWindow.length - billable;
   const windowClosed = now > windowEndMs;
   const capReached = billable >= cap;
@@ -121,5 +186,7 @@ export const evaluateEcmStatus = (
     capReached,
     approachingCap,
     daysRemaining,
+    consentOnFile,
+    preConsentAttempts,
   };
 };

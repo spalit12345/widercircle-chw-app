@@ -21,7 +21,10 @@ export const CCM_THRESHOLDS: Array<{ code: string; minutes: number; label: strin
   { code: '99439', minutes: 60, label: 'CCM · +40 min' },
 ];
 
-export const IDLE_AUTO_STOP_MS = 30 * 60 * 1000; // 30 min
+// 4-hour idle auto-stop on the demo build so a long board presentation
+// doesn't trip the timer mid-talk. Production default is 30 min per CD-17 AC-3
+// — flip this back once we move past the 5/5 demo window.
+export const IDLE_AUTO_STOP_MS = 4 * 60 * 60 * 1000;
 
 export interface ThresholdProgress {
   currentThreshold?: { code: string; minutes: number; label: string };
@@ -316,7 +319,10 @@ export function TimeTrackingPage(): JSX.Element {
                 </Group>
                 {running && (
                   <Alert variant="light" color="blue">
-                    <Text size="xs">Timer auto-stops after 30 min idle (AC-3).</Text>
+                    <Text size="xs">
+                      Timer auto-stops after 30 min idle in production (AC-3) · extended to 4h on
+                      the demo build so a long presentation doesn&apos;t trip it.
+                    </Text>
                   </Alert>
                 )}
               </Stack>
