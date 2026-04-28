@@ -12,6 +12,7 @@
 // add referral and case timeline once CM-05 / CM-21 land.
 
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -19,6 +20,7 @@ import {
   Group,
   Loader,
   Modal,
+  Progress,
   Select,
   Stack,
   Text,
@@ -51,16 +53,30 @@ import {
   IconHome,
   IconMapPin,
   IconNotes,
+  IconPhone,
   IconPill,
   IconPlus,
   IconStethoscope,
   IconVirus,
 } from '@tabler/icons-react';
-import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { MemberKeyInfoHeader } from '../components/MemberKeyInfoHeader';
 import { useRole } from '../auth/RoleContext';
 import { emitAudit } from '../utils/audit';
+import {
+  ECM_BILLABLE_EXT,
+  ECM_CAP_DEFAULT,
+  ECM_CATEGORY_CODE,
+  ECM_CHANNEL_EXT,
+  ECM_CHANNELS,
+  ECM_OUTCOME_EXT,
+  ECM_OUTCOMES,
+  ECM_WINDOW_DAYS_DEFAULT,
+  evaluateEcmStatus,
+  type EcmChannel,
+  type EcmOutcome,
+} from '../utils/ecm';
 
 const CASE_CATEGORY_CODE = 'case-management';
 const CASE_TYPE_EXT = 'https://widercircle.com/fhir/StructureDefinition/case-type';
@@ -113,6 +129,7 @@ interface LoadedData {
   carePlans: CarePlan[];
   cases: Task[];
   fieldVisits: Encounter[];
+  ecmAttempts: Communication[];
 }
 
 const EMPTY: LoadedData = {
@@ -126,6 +143,7 @@ const EMPTY: LoadedData = {
   carePlans: [],
   cases: [],
   fieldVisits: [],
+  ecmAttempts: [],
 };
 
 export function MemberContextPage(): JSX.Element {
@@ -147,6 +165,12 @@ export function MemberContextPage(): JSX.Element {
   const [visitDisposition, setVisitDisposition] = useState<string>('completed');
   const [visitNotes, setVisitNotes] = useState('');
   const [loggingVisit, setLoggingVisit] = useState(false);
+  // CM-22 ECM — log-attempt modal state.
+  const [ecmModalOpened, { open: openEcmModal, close: closeEcmModal }] = useDisclosure(false);
+  const [ecmChannel, setEcmChannel] = useState<EcmChannel>('call');
+  const [ecmOutcome, setEcmOutcome] = useState<EcmOutcome>('reached');
+  const [ecmNotes, setEcmNotes] = useState('');
+  const [loggingEcm, setLoggingEcm] = useState(false);
 
   const load = useCallback(async () => {
     if (!patientId) return;
@@ -165,6 +189,7 @@ export function MemberContextPage(): JSX.Element {
         carePlans,
         cases,
         visits,
+        ecmAttempts,
       ] = await Promise.all([
           medplum.readResource('Patient', patientId).catch(() => undefined),
           medplum.searchResources('Coverage', `${patientRef}&_count=10`).catch(() => []),
@@ -198,6 +223,12 @@ export function MemberContextPage(): JSX.Element {
               `${subject}&class=${FIELD_VISIT_CLASS_CODE}&_sort=-_lastUpdated&_count=10`
             )
             .catch(() => [] as Encounter[]),
+          medplum
+            .searchResources(
+              'Communication',
+              `${subject}&category=${ECM_CATEGORY_CODE}&_sort=-sent&_count=50`
+            )
+            .catch(() => [] as Communication[]),
         ]);
       setData({
         patient,
@@ -210,6 +241,7 @@ export function MemberContextPage(): JSX.Element {
         carePlans: carePlans ?? [],
         cases: (cases ?? []) as Task[],
         fieldVisits: (visits ?? []) as Encounter[],
+        ecmAttempts: (ecmAttempts ?? []) as Communication[],
       });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -221,6 +253,97 @@ export function MemberContextPage(): JSX.Element {
   useEffect(() => {
     load().catch(console.error);
   }, [load]);
+
+  const resetEcmForm = useCallback(() => {
+    setEcmChannel('call');
+    setEcmOutcome('reached');
+    setEcmNotes('');
+  }, []);
+
+  const handleLogEcmAttempt = useCallback(async () => {
+    if (!patientId || !data.patient) return;
+    const profile = medplum.getProfile();
+    setLoggingEcm(true);
+    try {
+      const now = new Date().toISOString();
+      const outcomeMeta = ECM_OUTCOMES.find((o) => o.value === ecmOutcome);
+      const billable = outcomeMeta?.billable ?? false;
+      const newAttempt: Communication = {
+        resourceType: 'Communication',
+        status: 'completed',
+        category: [
+          {
+            coding: [
+              {
+                system: 'https://widercircle.com/fhir/CodeSystem/communication-category',
+                code: ECM_CATEGORY_CODE,
+                display: 'ECM outreach attempt',
+              },
+            ],
+          },
+        ],
+        subject: {
+          reference: `Patient/${patientId}`,
+          display:
+            `${data.patient.name?.[0]?.given?.[0] ?? ''} ${data.patient.name?.[0]?.family ?? ''}`.trim() ||
+            'Member',
+        },
+        sent: now,
+        sender: profile
+          ? {
+              reference: `${profile.resourceType}/${profile.id}`,
+              display:
+                `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() ||
+                'CHW',
+            }
+          : undefined,
+        payload: ecmNotes.trim() ? [{ contentString: ecmNotes.trim() }] : undefined,
+        extension: [
+          { url: ECM_CHANNEL_EXT, valueString: ecmChannel },
+          { url: ECM_OUTCOME_EXT, valueString: ecmOutcome },
+          { url: ECM_BILLABLE_EXT, valueBoolean: billable },
+        ],
+      };
+      const saved = await medplum.createResource<Communication>(newAttempt);
+      // Audit emission via the existing DA-13 shim — reuse case.created action
+      // (the spec doesn't carry a dedicated outreach action yet; we tag the
+      // event entity so it's distinguishable).
+      void emitAudit(medplum, {
+        action: 'case.created',
+        patientRef: { reference: `Patient/${patientId}` },
+        meta: {
+          ecm: true,
+          channel: ecmChannel,
+          outcome: ecmOutcome,
+          billable,
+          communicationId: saved.id ?? '',
+        },
+      });
+      showNotification({
+        color: billable ? 'green' : 'yellow',
+        message: billable
+          ? `Outreach logged · billable (${outcomeMeta?.label ?? ecmOutcome})`
+          : `Outreach logged · non-billable (${outcomeMeta?.label ?? ecmOutcome})`,
+      });
+      closeEcmModal();
+      resetEcmForm();
+      await load();
+    } catch (err) {
+      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+    } finally {
+      setLoggingEcm(false);
+    }
+  }, [
+    patientId,
+    data.patient,
+    medplum,
+    ecmChannel,
+    ecmOutcome,
+    ecmNotes,
+    closeEcmModal,
+    resetEcmForm,
+    load,
+  ]);
 
   const resetVisitForm = useCallback(() => {
     setVisitDate(new Date().toISOString().slice(0, 16));
@@ -397,6 +520,8 @@ export function MemberContextPage(): JSX.Element {
   }
 
   const consentValid = data.consents.some((c) => c.status === 'active');
+  const ecmStatus = evaluateEcmStatus(data.ecmAttempts, data.patient);
+  const ecmCapPct = Math.min(100, Math.round((ecmStatus.billable / ecmStatus.cap) * 100));
 
   return (
     <Document>
@@ -404,6 +529,14 @@ export function MemberContextPage(): JSX.Element {
         <MemberKeyInfoHeader patient={data.patient} coverages={data.coverages} consentValid={consentValid} />
 
         <Group justify="flex-end" gap="sm">
+          <Button
+            variant="light"
+            color="indigo"
+            leftSection={<IconPhone size={14} />}
+            onClick={openEcmModal}
+          >
+            Log outreach
+          </Button>
           <Button
             variant="light"
             color="teal"
@@ -506,6 +639,121 @@ export function MemberContextPage(): JSX.Element {
                 }))}
                 empty="No active care plan."
               />
+            </SectionCard>
+          </Grid.Col>
+
+          {/* CM-22 — ECM outreach panel: cap counter, window counter,
+              billable vs non-billable breakdown. */}
+          <Grid.Col span={12}>
+            <SectionCard
+              title="ECM outreach"
+              icon={<IconPhone size={16} />}
+              count={ecmStatus.attempts}
+            >
+              <Stack gap="sm">
+                <Group justify="space-between" wrap="wrap">
+                  <Stack gap={2}>
+                    <Group gap="xs">
+                      <Text fw={700} size="lg" ff="monospace">
+                        {ecmStatus.billable} of {ecmStatus.cap}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        billable attempts this window
+                      </Text>
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      {ecmStatus.nonBillable > 0 && `${ecmStatus.nonBillable} non-billable · `}
+                      {ecmStatus.windowClosed
+                        ? 'Window closed'
+                        : `${ecmStatus.daysRemaining} day${ecmStatus.daysRemaining === 1 ? '' : 's'} remaining in ${ECM_WINDOW_DAYS_DEFAULT}-day window`}
+                    </Text>
+                  </Stack>
+                  <Group gap="xs">
+                    {ecmStatus.capReached && (
+                      <Badge color="red" variant="filled" size="md">
+                        Cap reached · further attempts non-billable
+                      </Badge>
+                    )}
+                    {!ecmStatus.capReached && ecmStatus.approachingCap && (
+                      <Badge color="orange" variant="filled" size="md">
+                        Approaching cap
+                      </Badge>
+                    )}
+                    {ecmStatus.windowClosed && (
+                      <Badge color="gray" variant="light" size="md">
+                        Window closed
+                      </Badge>
+                    )}
+                    {!ecmStatus.capReached && !ecmStatus.approachingCap && !ecmStatus.windowClosed && (
+                      <Badge color="green" variant="light" size="md">
+                        Within cap
+                      </Badge>
+                    )}
+                  </Group>
+                </Group>
+                <Progress
+                  value={ecmCapPct}
+                  size="md"
+                  color={ecmStatus.capReached ? 'red' : ecmStatus.approachingCap ? 'orange' : 'green'}
+                />
+                {(ecmStatus.capReached || ecmStatus.windowClosed) && (
+                  <Alert color="yellow" variant="light">
+                    <Text size="xs">
+                      Per CM-22 §AC, further outreach is still permitted but flagged
+                      non-billable. The ECM cap and window are admin-configurable per program (DA-08).
+                    </Text>
+                  </Alert>
+                )}
+                {data.ecmAttempts.length > 0 && (
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Recent attempts
+                    </Text>
+                    {data.ecmAttempts.slice(0, 5).map((c) => {
+                      const channel = c.extension?.find((e) => e.url === ECM_CHANNEL_EXT)?.valueString;
+                      const outcome = c.extension?.find((e) => e.url === ECM_OUTCOME_EXT)?.valueString;
+                      const billable = c.extension?.find((e) => e.url === ECM_BILLABLE_EXT)?.valueBoolean;
+                      const channelLabel =
+                        ECM_CHANNELS.find((ch) => ch.value === channel)?.label ?? channel ?? '—';
+                      const outcomeLabel =
+                        ECM_OUTCOMES.find((o) => o.value === outcome)?.label ?? outcome ?? '—';
+                      return (
+                        <Group
+                          key={c.id}
+                          justify="space-between"
+                          wrap="nowrap"
+                          p="xs"
+                          style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
+                        >
+                          <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                            <Text size="sm" fw={500}>
+                              {channelLabel} · {outcomeLabel}
+                            </Text>
+                            {c.payload?.[0]?.contentString && (
+                              <Text size="xs" c="dimmed" truncate>
+                                {c.payload[0].contentString}
+                              </Text>
+                            )}
+                            {c.sent && (
+                              <Text size="xs" c="dimmed" ff="monospace">
+                                {formatDateTime(c.sent)}
+                                {c.sender?.display ? ` · ${c.sender.display}` : ''}
+                              </Text>
+                            )}
+                          </Stack>
+                          <Badge
+                            color={billable ? 'green' : 'gray'}
+                            variant="light"
+                            size="xs"
+                          >
+                            {billable ? 'billable' : 'non-billable'}
+                          </Badge>
+                        </Group>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Stack>
             </SectionCard>
           </Grid.Col>
 
@@ -667,6 +915,77 @@ export function MemberContextPage(): JSX.Element {
           </Text>
         </Group>
       </Stack>
+
+      {/* CM-22: Log ECM outreach attempt. Creates a Communication with
+          category=ecm-outreach + channel/outcome/billable extensions. The
+          ECM panel above re-evaluates the cap once the attempt persists. */}
+      <Modal
+        opened={ecmModalOpened}
+        onClose={() => {
+          closeEcmModal();
+          resetEcmForm();
+        }}
+        title="Log ECM outreach attempt"
+        size="md"
+      >
+        <Stack gap="md">
+          <Alert color="indigo" variant="light" icon={<IconPhone size={16} />}>
+            <Text size="sm">
+              Per CM-22 every attempt counts toward the {ECM_CAP_DEFAULT}-attempt cap within{' '}
+              {ECM_WINDOW_DAYS_DEFAULT} days. Refused / wrong-number outcomes are recorded but
+              flagged non-billable. Cap-reached doesn't block — it just downgrades.
+            </Text>
+          </Alert>
+          <Select
+            label="Channel"
+            data={ECM_CHANNELS}
+            value={ecmChannel}
+            onChange={(v) => setEcmChannel((v as EcmChannel) ?? 'call')}
+            allowDeselect={false}
+            required
+          />
+          <Select
+            label="Outcome"
+            data={ECM_OUTCOMES.map((o) => ({
+              value: o.value,
+              label: `${o.label} · ${o.billable ? 'billable' : 'non-billable'}`,
+            }))}
+            value={ecmOutcome}
+            onChange={(v) => setEcmOutcome((v as EcmOutcome) ?? 'reached')}
+            allowDeselect={false}
+            required
+          />
+          <Textarea
+            label="Notes"
+            placeholder="What did you cover, what's next?"
+            value={ecmNotes}
+            onChange={(e) => setEcmNotes(e.currentTarget.value)}
+            minRows={2}
+            autosize
+          />
+          <Group justify="flex-end">
+            <Button
+              variant="light"
+              onClick={() => {
+                closeEcmModal();
+                resetEcmForm();
+              }}
+              disabled={loggingEcm}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="indigo"
+              leftSection={<IconPhone size={14} />}
+              loading={loggingEcm}
+              disabled={loggingEcm}
+              onClick={handleLogEcmAttempt}
+            >
+              Log attempt
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* CM-13 AC-4: Log field visit. Creates an Encounter with class=FLD,
           type carrying the location, reasonCode carrying the disposition,
