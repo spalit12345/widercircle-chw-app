@@ -34,23 +34,14 @@ import {
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
+import { ConsentBlock } from '../components/consent/ConsentBlock';
+import { CONSENT_CATEGORY_CODE, evaluateConsentStatus } from './ConsentCapturePage';
 
-// CD-05 (Consent Management) isn't merged to main yet; duplicate the 12-month
-// telehealth-chi consent check here. Once CD-05 lands this can be replaced with
-// `import { evaluateConsentStatus } from './ConsentCapturePage'`.
-const CONSENT_EXPIRATION_MONTHS = 12;
 const isConsentValid = (consents: Consent[], now: number = Date.now()): boolean => {
-  const active = consents
-    .filter((c) => c.status === 'active')
-    .filter((c) =>
-      c.category?.some((cat) => cat.coding?.some((coding) => coding.code === 'telehealth-chi'))
-    )
-    .sort((a, b) => (b.dateTime ?? '').localeCompare(a.dateTime ?? ''));
-  const latest = active[0];
-  if (!latest?.dateTime) return false;
-  const signedAt = new Date(latest.dateTime).getTime();
-  const expiresAt = signedAt + CONSENT_EXPIRATION_MONTHS * 30 * 24 * 3600 * 1000;
-  return expiresAt >= now;
+  const filtered = consents.filter((c) =>
+    c.category?.some((cat) => cat.coding?.some((coding) => coding.code === CONSENT_CATEGORY_CODE))
+  );
+  return evaluateConsentStatus(filtered, now).state === 'on-file';
 };
 
 type VisitPhase = 'checking' | 'blocked' | 'ready' | 'live' | 'paused' | 'ended' | 'error';
@@ -308,7 +299,7 @@ export function VisitWorkspacePage(): JSX.Element {
                 </Button>
               )}
               {phase === 'blocked' && (
-                <Tooltip label="Capture consent at /consent before launching" withArrow>
+                <Tooltip label="Capture consent below to enable launch" withArrow>
                   <span tabIndex={0} style={{ display: 'inline-flex' }}>
                     <Button color="blue" leftSection={<IconPhone size={16} />} disabled>
                       Launch visit
@@ -330,12 +321,16 @@ export function VisitWorkspacePage(): JSX.Element {
           </Group>
         </Card>
 
-        {phase === 'blocked' && (
-          <Alert color="red" icon={<IconLock size={18} />} title="Visit-start blocked">
-            <Text size="sm">
-              No valid Telehealth + CHI consent on file. Capture it at <b>/consent</b> then return here to launch.
-            </Text>
-          </Alert>
+        {phase === 'blocked' && patient?.id && (
+          <ConsentBlock
+            patientId={patient.id}
+            patientLabel={patientName}
+            hideVisitStartFooter
+            onCaptured={() => {
+              // Re-fetch consent + encounter; if consent now valid, phase flips to 'ready'.
+              load().catch(console.error);
+            }}
+          />
         )}
 
         <Grid gutter="md">
