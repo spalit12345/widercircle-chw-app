@@ -65,6 +65,7 @@ import { TodayPage } from './pages/TodayPage';
 import { VisitWorkspacePage } from './pages/VisitWorkspacePage';
 import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
 import { PublicConsentPage } from './pages/PublicConsentPage';
+import { PublicSdohPage } from './pages/PublicSdohPage';
 import { RoleManagementPage } from './pages/RoleManagementPage';
 import { MemberContextPage } from './pages/MemberContextPage';
 import { ReferralsPage } from './pages/ReferralsPage';
@@ -189,6 +190,7 @@ export function App(): JSX.Element | null {
                 }
               />
               <Route path="/public/consent/:questionnaireId/:patientId" element={<PublicConsentPage />} />
+              <Route path="/public/sdoh/:patientId" element={<PublicSdohPage />} />
               <Route path="/Fax/Communication" element={<FaxPage />} />
               <Route path="/Fax/Communication/:faxId" element={<FaxPage />} />
               <Route path="/onboarding" element={<IntakeFormPage />} />

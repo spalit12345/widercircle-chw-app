@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Center,
+  CopyButton,
   Divider,
   Group,
   Loader,
@@ -12,6 +13,7 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -24,7 +26,7 @@ import type {
   QuestionnaireResponseItemAnswer,
 } from '@medplum/fhirtypes';
 import { Document, QuestionnaireForm, useMedplum, useResource } from '@medplum/react';
-import { IconAlertCircle, IconAlertTriangle, IconClipboardCheck } from '@tabler/icons-react';
+import { IconAlertCircle, IconAlertTriangle, IconCheck, IconClipboardCheck, IconCopy, IconSend } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
@@ -69,6 +71,10 @@ export function AssessmentsPage(): JSX.Element | null {
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [viewedResponse, setViewedResponse] = useState<QuestionnaireResponse | null>(null);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
+  const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
+
+  const publicLink = `${window.location.origin}/public/sdoh/${id}`;
+  const smsBody = `Hi, this is your Wider Circle care team. Please take a quick health check-in here: ${publicLink}`;
 
   const fetchData = useCallback(async () => {
     try {
@@ -128,19 +134,37 @@ export function AssessmentsPage(): JSX.Element | null {
       <Stack gap="md">
         <Group justify="space-between">
           <Title order={3}>Assessments</Title>
-          <Button
-            leftSection={<IconClipboardCheck size={16} />}
-            onClick={() => {
-              if (questionnaires.length > 0) {
-                setSelectedQ(questionnaires[0]);
-                openForm();
-              } else {
-                showNotification({ color: 'yellow', message: 'No assessment questionnaires available. Run the seed script first.' });
-              }
-            }}
-          >
-            Start Assessment
-          </Button>
+          <Group gap="sm">
+            <Button
+              variant="light"
+              leftSection={<IconSend size={16} />}
+              onClick={() => {
+                if (questionnaires.length === 0) {
+                  showNotification({
+                    color: 'yellow',
+                    message: 'No assessment available to send. Run the seed script first.',
+                  });
+                  return;
+                }
+                openShare();
+              }}
+            >
+              Send to patient
+            </Button>
+            <Button
+              leftSection={<IconClipboardCheck size={16} />}
+              onClick={() => {
+                if (questionnaires.length > 0) {
+                  setSelectedQ(questionnaires[0]);
+                  openForm();
+                } else {
+                  showNotification({ color: 'yellow', message: 'No assessment questionnaires available. Run the seed script first.' });
+                }
+              }}
+            >
+              Start Assessment
+            </Button>
+          </Group>
         </Group>
 
         {loading ? (
@@ -215,6 +239,69 @@ export function AssessmentsPage(): JSX.Element | null {
             submitButtonText="Complete Assessment"
           />
         )}
+      </Modal>
+
+      {/* Send-to-patient modal — generates the public /public/sdoh/:patientId link */}
+      <Modal opened={shareOpened} onClose={closeShare} title="Send assessment to patient" size="md">
+        <Stack gap="md">
+          <Alert color="blue" variant="light" icon={<IconSend size={16} />}>
+            <Text size="sm">
+              Generate a link the patient can fill out from their phone. Closes the §3.1 spec gap that says
+              the assessment should be sent via portal or SMS link instead of administered by the CHW.
+            </Text>
+          </Alert>
+
+          <Stack gap={4}>
+            <Text size="xs" fw={600} c="dimmed">
+              Public link
+            </Text>
+            <Group gap="xs" wrap="nowrap">
+              <TextInput value={publicLink} readOnly style={{ flex: 1 }} ff="monospace" />
+              <CopyButton value={publicLink} timeout={1500}>
+                {({ copied, copy }) => (
+                  <Button
+                    variant="light"
+                    leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                    onClick={copy}
+                  >
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
+                )}
+              </CopyButton>
+            </Group>
+          </Stack>
+
+          <Stack gap={4}>
+            <Text size="xs" fw={600} c="dimmed">
+              SMS body (paste into your messaging tool)
+            </Text>
+            <Group gap="xs" wrap="nowrap">
+              <TextInput value={smsBody} readOnly style={{ flex: 1 }} />
+              <CopyButton value={smsBody} timeout={1500}>
+                {({ copied, copy }) => (
+                  <Button
+                    color="grape"
+                    leftSection={copied ? <IconCheck size={14} /> : <IconSend size={14} />}
+                    onClick={() => {
+                      copy();
+                      showNotification({
+                        color: 'grape',
+                        message: 'SMS body copied. Twilio integration lands with CM-12; for the demo paste this into your messaging tool.',
+                      });
+                    }}
+                  >
+                    {copied ? 'Copied' : 'Send via SMS'}
+                  </Button>
+                )}
+              </CopyButton>
+            </Group>
+          </Stack>
+
+          <Text size="xs" c="dimmed">
+            When the patient submits, their response will appear in <b>Past Results</b> below — refresh after
+            they finish.
+          </Text>
+        </Stack>
       </Modal>
 
       {/* Assessment Detail Modal — view a completed response */}
