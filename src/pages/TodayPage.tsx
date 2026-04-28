@@ -25,6 +25,7 @@ import { IconCheck, IconPlus } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { getActiveCarePlanRef } from '../utils/care-plan-link';
 
 type PriorityOption = 'urgent' | 'asap' | 'routine';
 
@@ -154,6 +155,10 @@ export function TodayPage(): JSX.Element {
     // network round trip. The create then runs in the background; success shows a
     // toast and refreshes, failure shows an error toast (form data is lost, same as
     // any optimistic-UI tradeoff — acceptable for a manual task with no heavy payload).
+    // CD-08 linkage: when a member is selected, stamp the Task's basedOn with
+    // their active CarePlan so the task surfaces under the plan and so billing
+    // rules can attribute the work to the right plan version.
+    const carePlanRef = formPatient ? await getActiveCarePlanRef(medplum, formPatient) : undefined;
     const payload: Task = {
       resourceType: 'Task',
       status: 'requested',
@@ -167,6 +172,7 @@ export function TodayPage(): JSX.Element {
             display: patients.find((p) => p.value === formPatient)?.label ?? '',
           }
         : undefined,
+      basedOn: carePlanRef ? [carePlanRef] : undefined,
       owner: { reference: practitionerRef, display: practitionerName },
       restriction: formDueDate ? { period: { end: formDueDate } } : undefined,
       authoredOn: new Date().toISOString(),
@@ -175,7 +181,12 @@ export function TodayPage(): JSX.Element {
     resetForm();
     try {
       await medplum.createResource<Task>(payload);
-      showNotification({ color: 'green', message: 'Task created' });
+      showNotification({
+        color: 'green',
+        message: carePlanRef
+          ? 'Task created and linked to active Care Plan'
+          : 'Task created',
+      });
       await fetchEverything();
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -248,13 +259,21 @@ export function TodayPage(): JSX.Element {
             <IconCheck size={16} />
           </ActionIcon>
           <Stack gap={2} style={{ minWidth: 0 }}>
-            <Text fw={500} size="sm" truncate>
+            <Text
+              fw={500}
+              size="sm"
+              c="blue"
+              style={{ cursor: 'pointer' }}
+              onClick={() => task.id && navigate(`/Task/${task.id}`)}
+              title="Open task details"
+              truncate
+            >
               {task.code?.text ?? task.description ?? 'Untitled task'}
             </Text>
             {patientId && (
               <Text
                 size="xs"
-                c="blue"
+                c="dimmed"
                 style={{ cursor: 'pointer' }}
                 onClick={() => navigate(`/Patient/${patientId}`)}
               >
