@@ -21,11 +21,24 @@ import { showNotification } from '@mantine/notifications';
 import { formatDate, formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Appointment, Patient, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconCheck, IconPlus } from '@tabler/icons-react';
-import type { JSX } from 'react';
+import {
+  IconCheck,
+  IconClipboardCheck,
+  IconClock,
+  IconHeartHandshake,
+  IconLockAccess,
+  IconNotebook,
+  IconPlus,
+  IconShieldCheck,
+  IconSignature,
+  IconStethoscope,
+} from '@tabler/icons-react';
+import type { ComponentType, JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { getActiveCarePlanRef } from '../utils/care-plan-link';
+import { useRole } from '../auth/RoleContext';
+import type { Permission } from '../auth/roles';
 
 type PriorityOption = 'urgent' | 'asap' | 'routine';
 
@@ -53,9 +66,81 @@ const appointmentTime = (appt: Appointment): string => {
   return formatDateTime(appt.start).split(',').pop()?.trim() ?? formatDateTime(appt.start);
 };
 
+interface QuickAction {
+  label: string;
+  description: string;
+  href: string;
+  icon: ComponentType<{ size?: number }>;
+  permission?: Permission;
+}
+
+const QUICK_ACTIONS: QuickAction[] = [
+  {
+    label: 'SDoH assessment',
+    description: 'PRAPARE screening · CHW or send to patient',
+    href: '/sdoh',
+    icon: IconHeartHandshake,
+    permission: 'sdoh.administer',
+  },
+  {
+    label: 'Capture consent',
+    description: 'Telehealth + CHI · verbal or e-sig',
+    href: '/consent',
+    icon: IconSignature,
+    permission: 'consent.capture',
+  },
+  {
+    label: 'Eligibility check',
+    description: 'Bridge real-time benefits',
+    href: '/eligibility',
+    icon: IconShieldCheck,
+    permission: 'eligibility.check',
+  },
+  {
+    label: 'Author Plan of Care',
+    description: 'Provider — narrative + action items',
+    href: '/plan-of-care',
+    icon: IconNotebook,
+    permission: 'careplan.author',
+  },
+  {
+    label: 'Review plan',
+    description: 'CHW / clinical staff acknowledge',
+    href: '/plan-review',
+    icon: IconClipboardCheck,
+    permission: 'careplan.review',
+  },
+  {
+    label: 'Edit plan',
+    description: 'CHW updates as care progresses',
+    href: '/plan-edit',
+    icon: IconStethoscope,
+    permission: 'careplan.edit',
+  },
+  {
+    label: 'Time tracking',
+    description: 'CCM stopwatch · billable minutes',
+    href: '/time-tracking',
+    icon: IconClock,
+    permission: 'time.track',
+  },
+  {
+    label: 'Submit for review',
+    description: 'CHW — flag work for Provider sign-off',
+    href: '/review-submission',
+    icon: IconLockAccess,
+    permission: 'review.submit',
+  },
+];
+
 export function TodayPage(): JSX.Element {
   const medplum = useMedplum();
   const navigate = useNavigate();
+  const { hasPermission } = useRole();
+  const visibleQuickActions = useMemo(
+    () => QUICK_ACTIONS.filter((a) => !a.permission || hasPermission(a.permission)),
+    [hasPermission]
+  );
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -312,6 +397,36 @@ export function TodayPage(): JSX.Element {
             New task
           </Button>
         </Group>
+
+        {/* Quick actions — every demo-relevant standalone flow lives behind one
+            click. Permissions hide actions the active role can't perform so the
+            on-stage role-switch trims the rail to what each persona uses. */}
+        {visibleQuickActions.length > 0 && (
+          <Card withBorder radius="md" padding="md">
+            <Stack gap="sm">
+              <Group justify="space-between">
+                <Title order={5}>Quick actions</Title>
+                <Text size="xs" c="dimmed">
+                  Launch the workflows you use most — no URL typing required.
+                </Text>
+              </Group>
+              <Group gap="xs" wrap="wrap">
+                {visibleQuickActions.map((action) => (
+                  <Button
+                    key={action.href}
+                    variant="light"
+                    color="blue"
+                    leftSection={<action.icon size={14} />}
+                    onClick={() => navigate(action.href)}
+                    title={action.description}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </Group>
+            </Stack>
+          </Card>
+        )}
 
         {loading ? (
           <Center py="xl">

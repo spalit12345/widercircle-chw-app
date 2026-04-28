@@ -48,6 +48,8 @@ import {
   IconBriefcase,
   IconCalendar,
   IconChevronRight,
+  IconClipboardCheck,
+  IconClock,
   IconExternalLink,
   IconHistory,
   IconHome,
@@ -56,7 +58,10 @@ import {
   IconPhone,
   IconPill,
   IconPlus,
+  IconShieldCheck,
+  IconSignature,
   IconStethoscope,
+  IconVideo,
   IconVirus,
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react';
@@ -171,6 +176,65 @@ export function MemberContextPage(): JSX.Element {
   const [ecmOutcome, setEcmOutcome] = useState<EcmOutcome>('reached');
   const [ecmNotes, setEcmNotes] = useState('');
   const [loggingEcm, setLoggingEcm] = useState(false);
+  const [startingVisit, setStartingVisit] = useState(false);
+
+  // Click-to-launch a telehealth visit. Creates a planned Encounter for this
+  // member and navigates to its workspace; if a planned/in-progress one
+  // already exists for the patient, reuse it.
+  const handleStartVisit = useCallback(async () => {
+    if (!patientId || !data.patient) return;
+    setStartingVisit(true);
+    try {
+      const existing = await medplum
+        .searchResources(
+          'Encounter',
+          `subject=Patient/${patientId}&status=planned,arrived,triaged,in-progress&_sort=-_lastUpdated&_count=1`
+        )
+        .catch(() => []);
+      const reuse = existing[0];
+      if (reuse?.id) {
+        navigate(`/encounters/${reuse.id}/workspace`);
+        return;
+      }
+      const profile = medplum.getProfile();
+      const created = await medplum.createResource({
+        resourceType: 'Encounter',
+        status: 'planned',
+        class: {
+          system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+          code: 'VR',
+          display: 'Virtual',
+        },
+        type: [{ text: 'Telehealth — CHI initiating visit' }],
+        subject: {
+          reference: `Patient/${patientId}`,
+          display:
+            `${data.patient.name?.[0]?.given?.[0] ?? ''} ${data.patient.name?.[0]?.family ?? ''}`.trim() ||
+            'Member',
+        },
+        participant: profile
+          ? [
+              {
+                individual: {
+                  reference: `${profile.resourceType}/${profile.id}`,
+                  display:
+                    `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() ||
+                    'Clinician',
+                },
+              },
+            ]
+          : undefined,
+        period: { start: new Date().toISOString() },
+      });
+      if (created.id) {
+        navigate(`/encounters/${created.id}/workspace`);
+      }
+    } catch (err) {
+      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+    } finally {
+      setStartingVisit(false);
+    }
+  }, [patientId, data.patient, medplum, navigate]);
 
   const load = useCallback(async () => {
     if (!patientId) return;
@@ -561,6 +625,84 @@ export function MemberContextPage(): JSX.Element {
               onClick={() => navigate(`/referrals?patientId=${patientId}`)}
             >
               Refer to supplier
+            </Button>
+          )}
+        </Group>
+
+        {/* Clinical workflow — the second row of buttons exists so the on-stage
+            demo never has to type a URL. Each button is permission-gated; the
+            CHW sees what a CHW can do, the Provider sees Author plan + Start
+            visit, etc. */}
+        <Group justify="flex-end" gap="sm">
+          {hasPermission('visit.conduct') && (
+            <Button
+              variant="filled"
+              color="blue"
+              leftSection={<IconVideo size={14} />}
+              loading={startingVisit}
+              onClick={handleStartVisit}
+            >
+              Start telehealth visit
+            </Button>
+          )}
+          {hasPermission('careplan.author') && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconNotes size={14} />}
+              onClick={() => navigate('/plan-of-care')}
+            >
+              Author plan
+            </Button>
+          )}
+          {hasPermission('careplan.review') && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconClipboardCheck size={14} />}
+              onClick={() => navigate('/plan-review')}
+            >
+              Review plan
+            </Button>
+          )}
+          {hasPermission('careplan.edit') && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconStethoscope size={14} />}
+              onClick={() => navigate('/plan-edit')}
+            >
+              Edit plan
+            </Button>
+          )}
+          {hasPermission('eligibility.check') && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconShieldCheck size={14} />}
+              onClick={() => navigate('/eligibility')}
+            >
+              Eligibility
+            </Button>
+          )}
+          {hasPermission('time.track') && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconClock size={14} />}
+              onClick={() => navigate('/time-tracking')}
+            >
+              Time tracking
+            </Button>
+          )}
+          {hasPermission('consent.capture') && (
+            <Button
+              variant="light"
+              color="blue"
+              leftSection={<IconSignature size={14} />}
+              onClick={() => navigate('/consent')}
+            >
+              Capture consent
             </Button>
           )}
         </Group>

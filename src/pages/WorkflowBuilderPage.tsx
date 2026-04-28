@@ -56,6 +56,7 @@ import type {
 import { Document, useMedplum } from '@medplum/react';
 import {
   IconArrowDown,
+  IconArrowLeft,
   IconArrowUp,
   IconBolt,
   IconChevronDown,
@@ -68,6 +69,7 @@ import {
 } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { emitAudit } from '../utils/audit';
 
 const STEP_CONFIG_EXT = 'https://widercircle.com/fhir/StructureDefinition/wf-step-config';
@@ -181,6 +183,7 @@ const isWorkflowPlan = (plan: PlanDefinition): boolean =>
 
 export function WorkflowBuilderPage(): JSX.Element {
   const medplum = useMedplum();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanDefinition[]>([]);
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -568,9 +571,19 @@ export function WorkflowBuilderPage(): JSX.Element {
               Trigger ingestion + SLA timers are deferred per spec scope.
             </Text>
           </Stack>
-          <Button leftSection={<IconPlus size={14} />} onClick={startNewWorkflow}>
-            New workflow
-          </Button>
+          <Group gap="xs">
+            <Button
+              variant="light"
+              color="gray"
+              leftSection={<IconArrowLeft size={14} />}
+              onClick={() => navigate('/admin/roles')}
+            >
+              Back to roles
+            </Button>
+            <Button leftSection={<IconPlus size={14} />} onClick={startNewWorkflow}>
+              New workflow
+            </Button>
+          </Group>
         </Group>
 
         {loading ? (
