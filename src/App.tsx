@@ -68,6 +68,7 @@ import { PublicConsentPage } from './pages/PublicConsentPage';
 import { PublicSdohPage } from './pages/PublicSdohPage';
 import { CaseloadPage } from './pages/CaseloadPage';
 import { RoleManagementPage } from './pages/RoleManagementPage';
+import { WorkflowBuilderPage } from './pages/WorkflowBuilderPage';
 import { MemberContextPage } from './pages/MemberContextPage';
 import { ReferralsPage } from './pages/ReferralsPage';
 
@@ -195,6 +196,14 @@ export function App(): JSX.Element | null {
                 element={
                   <RequirePermission permission="admin.roles">
                     <RoleManagementPage />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="/admin/workflows"
+                element={
+                  <RequirePermission permission="admin.roles">
+                    <WorkflowBuilderPage />
                   </RequirePermission>
                 }
               />
