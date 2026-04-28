@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { Alert, Badge, Center, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Center, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { normalizeErrorString } from '@medplum/core';
 import type { Encounter, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconAlertTriangle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -150,11 +150,22 @@ export function BillingDashboardPage(): JSX.Element {
   return (
     <Document>
       <Stack gap="md">
-        <Group justify="space-between">
-          <Title order={2}>Billing Threshold Dashboard</Title>
-          <Text size="sm" c="dimmed">
-            {monthLabel}
-          </Text>
+        <Group justify="space-between" align="flex-end" wrap="wrap">
+          <Stack gap={2}>
+            <Title order={2}>Billing Threshold Dashboard</Title>
+            <Text size="sm" c="dimmed">
+              {monthLabel}
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={14} />}
+              onClick={() => navigate('/billing-sync')}
+            >
+              Sync to Candid
+            </Button>
+          </Group>
         </Group>
 
         {/* Summary stats */}

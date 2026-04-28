@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 import { Alert, Badge, Button, Card, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { IconArrowLeft } from '@tabler/icons-react';
+import { useNavigate } from 'react-router';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Communication, Observation } from '@medplum/fhirtypes';
@@ -34,6 +36,7 @@ const CANDID_LOG_CODE = 'candid-billing-sync';
 
 export function BillingSyncPage(): JSX.Element {
   const medplum = useMedplum();
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<Observation[]>([]);
   const [syncLog, setSyncLog] = useState<Communication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,12 +141,22 @@ export function BillingSyncPage(): JSX.Element {
   return (
     <Document>
       <Stack gap="md">
-        <Stack gap={2}>
-          <Title order={2}>Billing sync (Candid)</Title>
-          <Text c="dimmed" size="sm">
-            Terminal node of the revenue path. CCM time entries from CD-17 are packaged with the appropriate CPT code (99490 ≥20min · 99439 ≥40min) and sent to Candid for claim submission. Simulated in this PR — vendor contract per CD-10 §4.
-          </Text>
-        </Stack>
+        <Group justify="space-between" align="flex-end" wrap="wrap">
+          <Stack gap={2}>
+            <Title order={2}>Billing sync (Candid)</Title>
+            <Text c="dimmed" size="sm">
+              Terminal node of the revenue path. CCM time entries from CD-17 are packaged with the appropriate CPT code (99490 ≥20min · 99439 ≥40min) and sent to Candid for claim submission. Simulated in this PR — vendor contract per CD-10 §4.
+            </Text>
+          </Stack>
+          <Button
+            variant="light"
+            color="gray"
+            leftSection={<IconArrowLeft size={14} />}
+            onClick={() => navigate('/billing-dashboard')}
+          >
+            Back to dashboard
+          </Button>
+        </Group>
 
         <Card withBorder radius="md" padding="md">
           <Group justify="space-between" align="flex-end">

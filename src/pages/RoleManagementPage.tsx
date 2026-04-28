@@ -8,14 +8,16 @@
 
 import { Badge, Button, Card, Group, ScrollArea, Stack, Table, Text, Title } from '@mantine/core';
 import { Document, useMedplumProfile } from '@medplum/react';
-import { IconRefresh, IconShieldCheck, IconTrash } from '@tabler/icons-react';
+import { IconRefresh, IconRoute, IconShieldCheck, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useNavigate } from 'react-router';
 import { useRole } from '../auth/RoleContext';
 import { clearRoleAuditTrail, getRoleAuditTrail, recordRoleChange, type RoleAuditEntry } from '../auth/audit';
 import { permissionsFor, ROLES, ROLE_LABELS, type Role } from '../auth/roles';
 
 export function RoleManagementPage(): JSX.Element {
   const profile = useMedplumProfile();
+  const navigate = useNavigate();
   const { role, setRole } = useRole();
   const [trail, setTrail] = useState<RoleAuditEntry[]>([]);
 
@@ -40,12 +42,23 @@ export function RoleManagementPage(): JSX.Element {
   return (
     <Document>
       <Stack gap="md">
-        <Stack gap={2}>
-          <Title order={2}>Role management</Title>
-          <Text c="dimmed" size="sm">
-            DA-14 RBAC v1 — function-dimension only. Entity-scope (CE/BA/Dual, DA-11) and member-assignment scope (DA-01) deferred. Role changes append-only to a local audit trail (DA-13-lite).
-          </Text>
-        </Stack>
+        <Group justify="space-between" align="flex-end" wrap="wrap">
+          <Stack gap={2}>
+            <Title order={2}>Role management</Title>
+            <Text c="dimmed" size="sm">
+              DA-14 RBAC v1 — function-dimension only. Entity-scope (CE/BA/Dual, DA-11) and member-assignment scope (DA-01) deferred. Role changes append-only to a local audit trail (DA-13-lite).
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            <Button
+              variant="light"
+              leftSection={<IconRoute size={14} />}
+              onClick={() => navigate('/admin/workflows')}
+            >
+              Workflow builder
+            </Button>
+          </Group>
+        </Group>
 
         <Card withBorder radius="md" padding="md">
           <Stack gap="sm">

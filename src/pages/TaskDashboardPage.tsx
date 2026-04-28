@@ -22,10 +22,11 @@ import { showNotification } from '@mantine/notifications';
 import { formatDate, normalizeErrorString } from '@medplum/core';
 import type { Patient, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconCheck, IconPlus } from '@tabler/icons-react';
+import { IconCheck, IconExternalLink, IconLockAccess, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useRole } from '../auth/RoleContext';
 
 interface TaskRow {
   id: string;
@@ -38,6 +39,7 @@ interface TaskRow {
 }
 
 export function TaskDashboardPage(): JSX.Element {
+  const { hasPermission } = useRole();
   const medplum = useMedplum();
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -179,6 +181,39 @@ export function TaskDashboardPage(): JSX.Element {
               New Task
             </Button>
           </Group>
+        </Group>
+
+        {/* Cross-queue links so the demo never has to type a URL. Permission-
+            gated: CHW sees Submit-for-review; Provider sees Sign-off queue. */}
+        <Group gap="xs" wrap="wrap">
+          {hasPermission('queue.signoff') && (
+            <Button
+              variant="light"
+              color="grape"
+              leftSection={<IconShieldCheck size={14} />}
+              onClick={() => navigate('/signoff-queue')}
+            >
+              Provider sign-off queue
+            </Button>
+          )}
+          {hasPermission('review.submit') && (
+            <Button
+              variant="light"
+              color="indigo"
+              leftSection={<IconLockAccess size={14} />}
+              onClick={() => navigate('/review-submission')}
+            >
+              Submit for review
+            </Button>
+          )}
+          <Button
+            variant="subtle"
+            color="gray"
+            leftSection={<IconExternalLink size={14} />}
+            onClick={() => navigate('/Task')}
+          >
+            Open full task board
+          </Button>
         </Group>
 
         {loading ? (
