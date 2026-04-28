@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Center,
+  Divider,
   Group,
   Loader,
   Modal,
@@ -16,12 +17,44 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
-import type { Questionnaire, QuestionnaireResponse, ResourceType } from '@medplum/fhirtypes';
+import type {
+  Questionnaire,
+  QuestionnaireResponse,
+  QuestionnaireResponseItem,
+  QuestionnaireResponseItemAnswer,
+} from '@medplum/fhirtypes';
 import { Document, QuestionnaireForm, useMedplum, useResource } from '@medplum/react';
-import { IconAlertCircle, IconClipboardCheck } from '@tabler/icons-react';
+import { IconAlertCircle, IconAlertTriangle, IconClipboardCheck } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
+
+const TRIGGERED_CASE_EXT_URL = 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case';
+
+const formatAnswer = (a: QuestionnaireResponseItemAnswer): string => {
+  if (a.valueString !== undefined) return a.valueString;
+  if (a.valueBoolean !== undefined) return a.valueBoolean ? 'Yes' : 'No';
+  if (a.valueInteger !== undefined) return String(a.valueInteger);
+  if (a.valueDecimal !== undefined) return String(a.valueDecimal);
+  if (a.valueDate !== undefined) return a.valueDate;
+  if (a.valueDateTime !== undefined) return formatDateTime(a.valueDateTime);
+  if (a.valueCoding?.display) return a.valueCoding.display;
+  if (a.valueCoding?.code) return a.valueCoding.code;
+  return '—';
+};
+
+const flattenItems = (items: QuestionnaireResponseItem[] | undefined): QuestionnaireResponseItem[] => {
+  const out: QuestionnaireResponseItem[] = [];
+  for (const item of items ?? []) {
+    if (item.answer && item.answer.length > 0) {
+      out.push(item);
+    }
+    if (item.item && item.item.length > 0) {
+      out.push(...flattenItems(item.item));
+    }
+  }
+  return out;
+};
 
 export function AssessmentsPage(): JSX.Element | null {
   const medplum = useMedplum();
@@ -34,6 +67,8 @@ export function AssessmentsPage(): JSX.Element | null {
   const [loading, setLoading] = useState(true);
   const [selectedQ, setSelectedQ] = useState<Questionnaire | null>(null);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
+  const [viewedResponse, setViewedResponse] = useState<QuestionnaireResponse | null>(null);
+  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -129,16 +164,37 @@ export function AssessmentsPage(): JSX.Element | null {
               <Table.Tbody>
                 {responses.map((qr) => {
                   const qName = qr.questionnaire ? 'PRAPARE SDoH Screening' : 'Assessment';
-                  const answerCount = qr.item?.filter((i) => i.answer && i.answer.length > 0).length ?? 0;
+                  const answeredItems = flattenItems(qr.item);
+                  const triggeredCount =
+                    qr.extension?.filter((e) => e.url === TRIGGERED_CASE_EXT_URL).length ?? 0;
                   return (
-                    <Table.Tr key={qr.id}>
+                    <Table.Tr
+                      key={qr.id}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setViewedResponse(qr);
+                        openDetail();
+                      }}
+                    >
                       <Table.Td>{qr.authored ? formatDateTime(qr.authored) : '—'}</Table.Td>
                       <Table.Td>{qName}</Table.Td>
-                      <Table.Td>{answerCount} questions answered</Table.Td>
+                      <Table.Td>{answeredItems.length} questions answered</Table.Td>
                       <Table.Td>
-                        <Badge color={qr.status === 'completed' ? 'green' : 'yellow'} size="sm">
-                          {qr.status}
-                        </Badge>
+                        <Group gap="xs">
+                          <Badge color={qr.status === 'completed' ? 'green' : 'yellow'} size="sm">
+                            {qr.status}
+                          </Badge>
+                          {triggeredCount > 0 && (
+                            <Badge
+                              color="yellow"
+                              size="sm"
+                              variant="light"
+                              leftSection={<IconAlertTriangle size={10} />}
+                            >
+                              {triggeredCount} case{triggeredCount === 1 ? '' : 's'}
+                            </Badge>
+                          )}
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   );
@@ -158,6 +214,75 @@ export function AssessmentsPage(): JSX.Element | null {
             onSubmit={handleSubmit}
             submitButtonText="Complete Assessment"
           />
+        )}
+      </Modal>
+
+      {/* Assessment Detail Modal — view a completed response */}
+      <Modal
+        opened={detailOpened}
+        onClose={() => {
+          closeDetail();
+          setViewedResponse(null);
+        }}
+        title={
+          viewedResponse?.authored
+            ? `Assessment · ${formatDateTime(viewedResponse.authored)}`
+            : 'Assessment detail'
+        }
+        size="lg"
+      >
+        {viewedResponse && (
+          <Stack gap="md">
+            {(() => {
+              const triggered =
+                viewedResponse.extension
+                  ?.filter((e) => e.url === TRIGGERED_CASE_EXT_URL)
+                  .map((e) => e.valueString)
+                  .filter((s): s is string => Boolean(s)) ?? [];
+              if (triggered.length === 0) {
+                return (
+                  <Alert color="green" variant="light">
+                    No risk thresholds crossed. No follow-up cases were created.
+                  </Alert>
+                );
+              }
+              return (
+                <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
+                  <Text size="sm" fw={600}>
+                    {triggered.length} follow-up case{triggered.length === 1 ? '' : 's'} triggered:
+                  </Text>
+                  <Stack gap={2} mt="xs">
+                    {triggered.map((c) => (
+                      <Text key={c} size="xs" ff="monospace">
+                        • {c}
+                      </Text>
+                    ))}
+                  </Stack>
+                </Alert>
+              );
+            })()}
+
+            <Divider label="Answers" labelPosition="left" />
+
+            {flattenItems(viewedResponse.item).length === 0 ? (
+              <Text c="dimmed" size="sm">
+                No answers were recorded on this response.
+              </Text>
+            ) : (
+              <Stack gap="sm">
+                {flattenItems(viewedResponse.item).map((item, idx) => (
+                  <Stack key={`${item.linkId}-${idx}`} gap={2}>
+                    <Text size="sm" fw={600}>
+                      {item.text ?? item.linkId ?? `Question ${idx + 1}`}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      {(item.answer ?? []).map(formatAnswer).join(', ') || '—'}
+                    </Text>
+                  </Stack>
+                ))}
+              </Stack>
+            )}
+          </Stack>
         )}
       </Modal>
     </Document>
