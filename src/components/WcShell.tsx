@@ -34,7 +34,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Home', href: '/today', Icon: IconHome2, match: (p) => p === '/' || p.startsWith('/today') || p.startsWith('/getstarted') },
   { id: 'queue', label: 'My queue', href: '/my-tasks', Icon: IconBriefcase2, match: (p) => p.startsWith('/my-tasks') || p.startsWith('/Task') || p.startsWith('/signoff-queue') || p.startsWith('/review-submission') },
-  { id: 'members', label: 'Members', href: '/Patient?_count=20&_fields=name,email,gender&_sort=-_lastUpdated', Icon: IconUsers, match: (p) => p.startsWith('/Patient') },
+  { id: 'members', label: 'Members', href: '/my-caseload', Icon: IconUsers, match: (p) => p.startsWith('/my-caseload') || p.startsWith('/Patient') || p.startsWith('/members') },
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'messaging', label: 'Messaging', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Spaces') || p.startsWith('/Fax') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing') },
