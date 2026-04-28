@@ -57,6 +57,13 @@ export function RoleManagementPage(): JSX.Element {
             >
               Workflow builder
             </Button>
+            <Button
+              variant="light"
+              leftSection={<IconShieldCheck size={14} />}
+              onClick={() => navigate('/admin/audit-log')}
+            >
+              Audit log
+            </Button>
           </Group>
         </Group>
 

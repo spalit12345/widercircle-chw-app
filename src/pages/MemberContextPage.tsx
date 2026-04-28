@@ -707,7 +707,7 @@ export function MemberContextPage(): JSX.Element {
               variant="light"
               color="blue"
               leftSection={<IconClipboardCheck size={14} />}
-              onClick={() => navigate('/plan-review')}
+              onClick={() => navigate(`/plan-review?patient=${data.patient.id}`)}
             >
               Review plan
             </Button>

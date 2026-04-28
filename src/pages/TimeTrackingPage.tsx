@@ -140,7 +140,10 @@ export function TimeTrackingPage(): JSX.Element {
       setTickNow(now);
       if (startedAt && now - startedAt > IDLE_AUTO_STOP_MS) {
         setRunning(false);
-        showNotification({ color: 'yellow', message: 'Timer auto-stopped after 30 min idle' });
+        showNotification({
+          color: 'yellow',
+          message: `Timer auto-stopped after ${IDLE_AUTO_STOP_MS / 3600000}h idle (CD-17 AC-3)`,
+        });
       }
     }, 1000);
     return () => clearInterval(id);
