@@ -114,14 +114,17 @@ export const evaluateEcmStatus = (
   const windowDays = options?.windowDays ?? ECM_WINDOW_DAYS_DEFAULT;
   const now = options?.now ?? Date.now();
 
-  const startBaseline =
-    patient?.meta?.lastUpdated ??
-    patient?.meta?.versionId ??
-    attempts[attempts.length - 1]?.sent ??
-    new Date(now - windowDays * 24 * 3600 * 1000).toISOString();
-  const windowStart = patient?.meta?.lastUpdated ?? startBaseline;
-  const windowStartMs = Date.parse(windowStart);
+  // Window anchors to the earliest ECM attempt on file so the 60-day cap
+  // tracks from the start of outreach activity, not from the last time the
+  // Patient resource was touched. Members with no attempts get a rolling
+  // lookback ending now so the panel still renders sensibly.
+  const sentMsList = attempts
+    .map((c) => (c.sent ? Date.parse(c.sent) : Number.NaN))
+    .filter((n) => Number.isFinite(n));
+  const earliestAttemptMs = sentMsList.length > 0 ? Math.min(...sentMsList) : now - windowDays * 24 * 3600 * 1000;
+  const windowStartMs = earliestAttemptMs;
   const windowEndMs = windowStartMs + windowDays * 24 * 3600 * 1000;
+  const windowStart = new Date(windowStartMs).toISOString();
 
   const inWindow = attempts.filter((c) => {
     const sentMs = c.sent ? Date.parse(c.sent) : Number.NaN;
