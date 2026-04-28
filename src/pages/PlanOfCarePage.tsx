@@ -23,6 +23,7 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconDotsVertical, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { emitAudit } from '../utils/audit';
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 type ActionStatus = 'not-started' | 'in-progress' | 'completed' | 'cancelled' | 'on-hold';
@@ -207,6 +208,13 @@ export function PlanOfCarePage(): JSX.Element {
       setSaveState('saved');
       setSavedAt(Date.now());
       setVersion((v) => v + 1);
+      // CD-08 AC-6 — DA-13 audit emission on every save (new version).
+      void emitAudit(medplum, {
+        action: 'careplan.saved',
+        patientRef: { reference: `Patient/${selectedPatient}`, display: patientLabel },
+        carePlanRef: saved.id ? { reference: `CarePlan/${saved.id}` } : undefined,
+        meta: { version: version, itemCount: items.length },
+      });
       const plans = await medplum.searchResources(
         'CarePlan',
         `subject=Patient/${selectedPatient}&_sort=-_lastUpdated&_count=20`

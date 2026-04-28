@@ -8,21 +8,32 @@ import {
   Divider,
   Group,
   Loader,
+  Modal,
   Select,
   Stack,
   Text,
   Title,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
-import type { CarePlan, CarePlanActivity, Communication, Patient } from '@medplum/fhirtypes';
+import type {
+  CarePlan,
+  CarePlanActivity,
+  Communication,
+  Patient,
+  Provenance,
+} from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconCheck, IconLock } from '@tabler/icons-react';
+import { IconCheck, IconGitCompare, IconHeartHandshake, IconLock } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SignaturePad } from '../components/SignaturePad';
+import { emitAudit } from '../utils/audit';
 
 const SIGNATURE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-signature';
+const MEMBER_SIGNATURE_BLOB_EXT = 'https://widercircle.com/fhir/StructureDefinition/member-signature-blob';
+const MEMBER_SIGNATURE_RELATIONSHIP_EXT = 'https://widercircle.com/fhir/StructureDefinition/member-signature-relationship';
 
 // Plan acknowledgments are recorded as Communication resources with
 // category.coding.code='plan-acknowledgment'. Plain FHIR Communication works
@@ -108,9 +119,15 @@ export function PlanReviewPage(): JSX.Element {
   const [plan, setPlan] = useState<CarePlan | undefined>();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [acks, setAcks] = useState<Communication[]>([]);
+  const [memberSignatures, setMemberSignatures] = useState<Provenance[]>([]);
+  const [versionHistory, setVersionHistory] = useState<CarePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [acking, setAcking] = useState(false);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [memberSignatureDataUrl, setMemberSignatureDataUrl] = useState<string | null>(null);
+  const [memberSignatureRelationship, setMemberSignatureRelationship] = useState<string>('member');
+  const [signingMember, setSigningMember] = useState(false);
+  const [diffOpened, { open: openDiff, close: closeDiff }] = useDisclosure(false);
 
   const loadPatients = useCallback(async () => {
     try {
@@ -140,19 +157,30 @@ export function PlanReviewPage(): JSX.Element {
       try {
         const plans = await medplum.searchResources(
           'CarePlan',
-          `subject=Patient/${patientId}&_sort=-_lastUpdated&_count=1`
+          `subject=Patient/${patientId}&_sort=-_lastUpdated&_count=10`
         );
         const latest = plans[0];
         setPlan(latest);
         setItems(latest ? itemsFromPlan(latest, currentUserRef) : []);
+        setVersionHistory(plans);
         if (latest?.id) {
-          const ackResults = await medplum.searchResources(
-            'Communication',
-            `based-on=CarePlan/${latest.id}&category=${ACK_CATEGORY_CODE}&_sort=-_lastUpdated&_count=10`
-          );
+          const [ackResults, provenanceResults] = await Promise.all([
+            medplum.searchResources(
+              'Communication',
+              `based-on=CarePlan/${latest.id}&category=${ACK_CATEGORY_CODE}&_sort=-_lastUpdated&_count=10`
+            ),
+            medplum
+              .searchResources(
+                'Provenance',
+                `target=CarePlan/${latest.id}&_sort=-_lastUpdated&_count=10`
+              )
+              .catch(() => [] as Provenance[]),
+          ]);
           setAcks(ackResults);
+          setMemberSignatures(provenanceResults as Provenance[]);
         } else {
           setAcks([]);
+          setMemberSignatures([]);
         }
       } catch (err) {
         showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -231,12 +259,131 @@ export function PlanReviewPage(): JSX.Element {
     }
   }, [plan, currentUserRef, currentUserLabel, medplum, selectedPatient, loadPlan, signatureDataUrl]);
 
+  // CM-13 AC-3 — capture the member's signature on the latest Plan version.
+  // Writes a Provenance whose target is the CarePlan, agent is the
+  // Practitioner who witnessed it, signature.who carries the member, and
+  // signature.data carries the PNG blob.
+  const captureMemberSignature = useCallback(async () => {
+    if (!plan?.id || !plan.subject || !memberSignatureDataUrl) return;
+    setSigningMember(true);
+    try {
+      const now = new Date().toISOString();
+      const blobBase64 = memberSignatureDataUrl.replace(/^data:image\/png;base64,/, '');
+      const provenance: Provenance = {
+        resourceType: 'Provenance',
+        target: [{ reference: `CarePlan/${plan.id}` }],
+        recorded: now,
+        agent: [
+          {
+            type: {
+              coding: [
+                {
+                  system: 'http://terminology.hl7.org/CodeSystem/provenance-participant-type',
+                  code: 'witness',
+                  display: 'Witness',
+                },
+              ],
+            },
+            who: currentUserRef
+              ? { reference: currentUserRef, display: currentUserLabel }
+              : undefined,
+          },
+        ],
+        signature: [
+          {
+            type: [
+              {
+                system: 'urn:iso-astm:E1762-95:2013',
+                code: '1.2.840.10065.1.12.1.7',
+                display: "Consent Signature",
+              },
+            ],
+            when: now,
+            who: plan.subject,
+            sigFormat: 'image/png',
+            data: blobBase64,
+          },
+        ],
+        extension: [
+          {
+            url: MEMBER_SIGNATURE_BLOB_EXT,
+            valueAttachment: {
+              contentType: 'image/png',
+              creation: now,
+              data: blobBase64,
+            },
+          },
+          {
+            url: MEMBER_SIGNATURE_RELATIONSHIP_EXT,
+            valueString: memberSignatureRelationship,
+          },
+        ],
+      };
+      const saved = await medplum.createResource<Provenance>(provenance);
+      // CD-19/CM-13 AC-3 — audit the member-signature event.
+      void emitAudit(medplum, {
+        action: 'careplan.signed',
+        patientRef: plan.subject,
+        carePlanRef: { reference: `CarePlan/${plan.id}` },
+        meta: {
+          signedBy: memberSignatureRelationship,
+          provenanceId: saved.id ?? '',
+        },
+      });
+      showNotification({ color: 'green', message: 'Member signature captured' });
+      setMemberSignatureDataUrl(null);
+      await loadPlan(selectedPatient);
+    } catch (err) {
+      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
+    } finally {
+      setSigningMember(false);
+    }
+  }, [
+    plan,
+    memberSignatureDataUrl,
+    memberSignatureRelationship,
+    currentUserRef,
+    currentUserLabel,
+    medplum,
+    selectedPatient,
+    loadPlan,
+  ]);
+
   const { mine, others } = useMemo(() => partitionForReview(items), [items]);
 
   const alreadyAcked = useMemo(() => {
     if (!plan?.id || !currentUserRef) return false;
     return acks.some((a) => a.sender?.reference === currentUserRef);
   }, [acks, plan?.id, currentUserRef]);
+
+  const memberSignedThisPlan = memberSignatures.length > 0;
+
+  // CD-08 AC-3 — diff against the previous Plan version. Three buckets:
+  // added items (in latest, not in previous), removed (in previous, not in
+  // latest), status-changed (same id, different detail.status).
+  const versionDiff = useMemo(() => {
+    if (versionHistory.length < 2) {
+      return { added: [], removed: [], statusChanged: [] };
+    }
+    const itemsOf = (cp: CarePlan): ReviewItem[] => itemsFromPlan(cp, currentUserRef);
+    const latestItems = itemsOf(versionHistory[0]);
+    const prevItems = itemsOf(versionHistory[1]);
+    const prevById = new Map(prevItems.map((i) => [i.id, i]));
+    const latestById = new Map(latestItems.map((i) => [i.id, i]));
+    const added = latestItems.filter((i) => !prevById.has(i.id));
+    const removed = prevItems.filter((i) => !latestById.has(i.id));
+    const statusChanged: { item: ReviewItem; from: ItemStatus }[] = [];
+    for (const item of latestItems) {
+      const prev = prevById.get(item.id);
+      if (prev && prev.status !== item.status) {
+        statusChanged.push({ item, from: prev.status });
+      }
+    }
+    return { added, removed, statusChanged };
+  }, [versionHistory, currentUserRef]);
+
+  const hasDiff =
+    versionDiff.added.length + versionDiff.removed.length + versionDiff.statusChanged.length > 0;
 
   if (loading) {
     return (
@@ -284,11 +431,33 @@ export function PlanReviewPage(): JSX.Element {
           <>
             <Card withBorder radius="md" padding="md">
               <Stack gap="xs">
-                <Group justify="space-between">
+                <Group justify="space-between" wrap="wrap">
                   <Title order={4}>Care Plan for {plan.subject?.display ?? 'member'}</Title>
-                  <Badge color={plan.status === 'active' ? 'green' : 'gray'} variant="light">
-                    {plan.status}
-                  </Badge>
+                  <Group gap="xs">
+                    {memberSignedThisPlan && (
+                      <Badge
+                        color="green"
+                        variant="light"
+                        leftSection={<IconHeartHandshake size={12} />}
+                        size="md"
+                      >
+                        Signed by member
+                      </Badge>
+                    )}
+                    {versionHistory.length > 1 && (
+                      <Button
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconGitCompare size={12} />}
+                        onClick={openDiff}
+                      >
+                        Show changes vs v{versionHistory.length - 1}
+                      </Button>
+                    )}
+                    <Badge color={plan.status === 'active' ? 'green' : 'gray'} variant="light">
+                      {plan.status}
+                    </Badge>
+                  </Group>
                 </Group>
                 {plan.description && <Text size="sm">{plan.description}</Text>}
                 <Text size="xs" c="dimmed">
@@ -346,6 +515,91 @@ export function PlanReviewPage(): JSX.Element {
             </Card>
 
             <Divider />
+
+            {/* CM-13 AC-3 — member signature on the Plan of Care. The CHW
+                captures the member's signature in front of them; stored as a
+                Provenance with signature.data = PNG blob. Distinct from the
+                reviewer-acknowledgment Communication below. */}
+            <Card withBorder radius="md" padding="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="flex-start" wrap="wrap">
+                  <Stack gap={2}>
+                    <Title order={5}>Member signature on Plan of Care</Title>
+                    <Text size="xs" c="dimmed">
+                      Per CM-13 AC-3 the member signs the plan in front of the CHW. The PNG is
+                      stored on a Provenance resource targeting this CarePlan version with the
+                      witness Practitioner attached.
+                    </Text>
+                  </Stack>
+                  {memberSignedThisPlan && (
+                    <Badge
+                      color="green"
+                      variant="light"
+                      leftSection={<IconHeartHandshake size={12} />}
+                    >
+                      {memberSignatures.length} signature
+                      {memberSignatures.length === 1 ? '' : 's'} on file
+                    </Badge>
+                  )}
+                </Group>
+                <SignaturePad onChange={setMemberSignatureDataUrl} label="Member signature" />
+                <Select
+                  label="Signed by"
+                  data={[
+                    { value: 'member', label: 'Member' },
+                    { value: 'guardian', label: 'Legal guardian' },
+                    { value: 'authorized-representative', label: 'Authorized representative' },
+                  ]}
+                  value={memberSignatureRelationship}
+                  onChange={(v) => setMemberSignatureRelationship(v ?? 'member')}
+                  allowDeselect={false}
+                  size="xs"
+                  w={260}
+                />
+                <Group justify="flex-end">
+                  <Button
+                    color="grape"
+                    leftSection={<IconHeartHandshake size={16} />}
+                    onClick={captureMemberSignature}
+                    loading={signingMember}
+                    disabled={signingMember || !plan || !memberSignatureDataUrl}
+                  >
+                    Capture member signature
+                  </Button>
+                </Group>
+                {memberSignedThisPlan && (
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                      Past member signatures
+                    </Text>
+                    {memberSignatures.slice(0, 5).map((p) => {
+                      const blob = p.signature?.[0]?.data;
+                      return (
+                        <Group key={p.id} gap="sm" wrap="nowrap">
+                          {blob && (
+                            <img
+                              src={`data:image/png;base64,${blob}`}
+                              alt="Member signature"
+                              style={{
+                                height: 32,
+                                border: '1px solid var(--mantine-color-gray-3)',
+                                borderRadius: 4,
+                                background: '#fff',
+                              }}
+                            />
+                          )}
+                          <Text size="xs" c="dimmed" ff="monospace">
+                            {p.recorded ? formatDateTime(p.recorded) : ''} ·{' '}
+                            {p.extension?.find((e) => e.url === MEMBER_SIGNATURE_RELATIONSHIP_EXT)
+                              ?.valueString ?? 'member'}
+                          </Text>
+                        </Group>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
 
             {alreadyAcked ? (
               <Group justify="space-between" wrap="wrap">
@@ -424,6 +678,141 @@ export function PlanReviewPage(): JSX.Element {
           </>
         )}
       </Stack>
+
+      {/* CD-08 AC-3 — Plan version diff. Compares latest vs previous version
+          and lists items added, removed, and status-changed. */}
+      <Modal
+        opened={diffOpened}
+        onClose={closeDiff}
+        title={`Changes since v${Math.max(0, versionHistory.length - 1)}`}
+        size="lg"
+        centered
+      >
+        <Stack gap="md">
+          {!hasDiff ? (
+            <Alert color="gray" variant="light">
+              <Text size="sm">
+                No item-level changes between this version and the previous one. Differences may
+                be in narrative or metadata only.
+              </Text>
+            </Alert>
+          ) : (
+            <>
+              {versionDiff.added.length > 0 && (
+                <Card withBorder radius="md" padding="md">
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <Badge color="green" variant="light">
+                        Added · {versionDiff.added.length}
+                      </Badge>
+                    </Group>
+                    {versionDiff.added.map((item) => (
+                      <Group
+                        key={`added-${item.id}`}
+                        justify="space-between"
+                        p="xs"
+                        wrap="nowrap"
+                        style={{ borderLeft: '3px solid var(--mantine-color-green-5)', paddingLeft: 8 }}
+                      >
+                        <Stack gap={2}>
+                          <Text size="sm" fw={500}>
+                            {item.title}
+                          </Text>
+                          {item.description && (
+                            <Text size="xs" c="dimmed">
+                              {item.description}
+                            </Text>
+                          )}
+                        </Stack>
+                        <Badge size="xs" color={STATUS_COLORS[item.status]} variant="light">
+                          {STATUS_LABELS[item.status]}
+                        </Badge>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Card>
+              )}
+              {versionDiff.removed.length > 0 && (
+                <Card withBorder radius="md" padding="md">
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <Badge color="red" variant="light">
+                        Removed · {versionDiff.removed.length}
+                      </Badge>
+                    </Group>
+                    {versionDiff.removed.map((item) => (
+                      <Group
+                        key={`removed-${item.id}`}
+                        justify="space-between"
+                        p="xs"
+                        wrap="nowrap"
+                        style={{
+                          borderLeft: '3px solid var(--mantine-color-red-5)',
+                          paddingLeft: 8,
+                          textDecoration: 'line-through',
+                          opacity: 0.7,
+                        }}
+                      >
+                        <Stack gap={2}>
+                          <Text size="sm" fw={500}>
+                            {item.title}
+                          </Text>
+                          {item.description && (
+                            <Text size="xs" c="dimmed">
+                              {item.description}
+                            </Text>
+                          )}
+                        </Stack>
+                        <Badge size="xs" color={STATUS_COLORS[item.status]} variant="light">
+                          {STATUS_LABELS[item.status]}
+                        </Badge>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Card>
+              )}
+              {versionDiff.statusChanged.length > 0 && (
+                <Card withBorder radius="md" padding="md">
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <Badge color="blue" variant="light">
+                        Status changed · {versionDiff.statusChanged.length}
+                      </Badge>
+                    </Group>
+                    {versionDiff.statusChanged.map(({ item, from }) => (
+                      <Group
+                        key={`status-${item.id}`}
+                        justify="space-between"
+                        p="xs"
+                        wrap="nowrap"
+                        style={{
+                          borderLeft: '3px solid var(--mantine-color-blue-5)',
+                          paddingLeft: 8,
+                        }}
+                      >
+                        <Text size="sm" fw={500}>
+                          {item.title}
+                        </Text>
+                        <Group gap={4}>
+                          <Badge size="xs" color={STATUS_COLORS[from]} variant="light">
+                            {STATUS_LABELS[from]}
+                          </Badge>
+                          <Text size="xs" c="dimmed">
+                            →
+                          </Text>
+                          <Badge size="xs" color={STATUS_COLORS[item.status]} variant="light">
+                            {STATUS_LABELS[item.status]}
+                          </Badge>
+                        </Group>
+                      </Group>
+                    ))}
+                  </Stack>
+                </Card>
+              )}
+            </>
+          )}
+        </Stack>
+      </Modal>
     </Document>
   );
 }

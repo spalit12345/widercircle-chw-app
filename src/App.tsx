@@ -137,7 +137,14 @@ export function App(): JSX.Element | null {
               <Route path="/Task" element={<TasksPage />} />
               <Route path="/Task/:taskId" element={<TasksPage />} />
               {/* WiderCircle CHW features */}
-              <Route path="/billing-dashboard" element={<BillingDashboardPage />} />
+              <Route
+                path="/billing-dashboard"
+                element={
+                  <RequirePermission permission="billing.view">
+                    <BillingDashboardPage />
+                  </RequirePermission>
+                }
+              />
               <Route path="/today" element={<TodayPage />} />
               <Route path="/eligibility" element={<EligibilityCheckPage />} />
               <Route path="/encounters/:encounterId/pre-visit" element={<PreVisitPage />} />
