@@ -66,6 +66,7 @@ import { VisitWorkspacePage } from './pages/VisitWorkspacePage';
 import { SchedulePage as CHWSchedulePage } from './pages/SchedulePage';
 import { PublicConsentPage } from './pages/PublicConsentPage';
 import { PublicSdohPage } from './pages/PublicSdohPage';
+import { CaseloadPage } from './pages/CaseloadPage';
 import { RoleManagementPage } from './pages/RoleManagementPage';
 import { MemberContextPage } from './pages/MemberContextPage';
 import { ReferralsPage } from './pages/ReferralsPage';
@@ -173,6 +174,7 @@ export function App(): JSX.Element | null {
               />
               <Route path="/my-tasks" element={<TaskDashboardPage />} />
               <Route path="/my-schedule" element={<CHWSchedulePage />} />
+              <Route path="/my-caseload" element={<CaseloadPage />} />
               <Route
                 path="/referrals"
                 element={
