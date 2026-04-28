@@ -5,9 +5,11 @@ import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Observation, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconClockEdit, IconPlayerPause, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
+import { IconAlertTriangle, IconClockEdit, IconPlayerPause, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { getActiveCarePlanRef } from '../utils/care-plan-link';
 
 const MANUAL_ENTRY_EXT = 'https://widercircle.com/fhir/StructureDefinition/manual-time-entry';
 const MANUAL_JUSTIFICATION_EXT = 'https://widercircle.com/fhir/StructureDefinition/manual-time-justification';
@@ -60,6 +62,7 @@ export const sumObservationMinutes = (observations: Observation[]): number => {
 
 export function TimeTrackingPage(): JSX.Element {
   const medplum = useMedplum();
+  const navigate = useNavigate();
   const profile = medplum.getProfile();
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedPatient, setSelectedPatient] = useState('');
@@ -72,6 +75,9 @@ export function TimeTrackingPage(): JSX.Element {
   const [manualMinutes, setManualMinutes] = useState<number | string>(15);
   const [manualJustification, setManualJustification] = useState('');
   const [savingManual, setSavingManual] = useState(false);
+  // CD-08 + CD-17 gate: billable time requires an authored Plan of Care.
+  // Undefined while we're checking; null = confirmed missing; string = ref id.
+  const [carePlanRef, setCarePlanRef] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     medplum
@@ -110,6 +116,19 @@ export function TimeTrackingPage(): JSX.Element {
   useEffect(() => {
     loadEntries(selectedPatient).catch(console.error);
   }, [selectedPatient, loadEntries]);
+
+  useEffect(() => {
+    if (!selectedPatient) {
+      setCarePlanRef(undefined);
+      return;
+    }
+    setCarePlanRef(undefined);
+    getActiveCarePlanRef(medplum, selectedPatient)
+      .then((ref) => setCarePlanRef(ref?.reference ?? null))
+      .catch(() => setCarePlanRef(null));
+  }, [medplum, selectedPatient]);
+
+  const noActivePlan = selectedPatient && carePlanRef === null;
 
   useEffect(() => {
     if (!running) return;
@@ -246,6 +265,29 @@ export function TimeTrackingPage(): JSX.Element {
 
         <Select label="Member" placeholder="Pick a member" data={patients} value={selectedPatient} onChange={(v) => setSelectedPatient(v ?? '')} searchable required />
 
+        {noActivePlan && (
+          <Alert
+            color="yellow"
+            variant="light"
+            icon={<IconAlertTriangle size={16} />}
+            title="No active Plan of Care for this member"
+          >
+            <Text size="sm">
+              Time logged here will not be billable until a Provider authors a Plan of Care
+              (CD-08). Start tracking after the plan exists.
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              color="yellow"
+              mt="xs"
+              onClick={() => navigate('/plan-of-care')}
+            >
+              Open Plan of Care authoring
+            </Button>
+          </Alert>
+        )}
+
         {selectedPatient && (
           <>
             <Card withBorder radius="md" padding="md">
@@ -263,7 +305,7 @@ export function TimeTrackingPage(): JSX.Element {
                   </Group>
                   <Group>
                     {!running ? (
-                      <Button color="blue" leftSection={<IconPlayerPlay size={16} />} onClick={start} disabled={saving}>Start</Button>
+                      <Button color="blue" leftSection={<IconPlayerPlay size={16} />} onClick={start} disabled={saving || Boolean(noActivePlan)}>Start</Button>
                     ) : (
                       <>
                         <Button color="yellow" leftSection={<IconPlayerPause size={16} />} onClick={() => setRunning(false)} variant="light">Pause</Button>
@@ -337,7 +379,7 @@ export function TimeTrackingPage(): JSX.Element {
                     color="orange"
                     onClick={submitManualEntry}
                     loading={savingManual}
-                    disabled={savingManual || manualJustification.trim().length < 10}
+                    disabled={savingManual || manualJustification.trim().length < 10 || Boolean(noActivePlan)}
                     leftSection={<IconClockEdit size={16} />}
                   >
                     Log manual entry

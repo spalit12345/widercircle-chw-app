@@ -32,12 +32,22 @@ import type {
   Patient,
   PlanDefinition,
   ResourceType,
+  Task,
 } from '@medplum/fhirtypes';
 import { Document, useMedplum, useResource } from '@medplum/react';
-import { IconAlertCircle, IconExternalLink, IconNote, IconPlayerPlay, IconPlus, IconStethoscope, IconTarget } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconChecklist,
+  IconExternalLink,
+  IconNote,
+  IconPlayerPlay,
+  IconPlus,
+  IconStethoscope,
+  IconTarget,
+} from '@tabler/icons-react';
 import { Fragment, type JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { GlobalActivityTimer } from '../../billing/GlobalActivityTimer';
 import { useGlobalTimer } from '../../billing/TimerContext';
 import { useBillingConfig } from '../../billing/useBillingConfig';
@@ -120,8 +130,10 @@ export function CarePlanPage(): JSX.Element | null {
   const resourceType = 'Patient' as const;
   const resource = useResource({ reference: resourceType + '/' + id });
 
+  const navigate = useNavigate();
   const [carePlan, setCarePlan] = useState<CarePlan | undefined>();
   const [goals, setGoals] = useState<GoalRow[]>([]);
+  const [linkedTasks, setLinkedTasks] = useState<Task[]>([]);
   const [templates, setTemplates] = useState<PlanDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [templateModalOpened, { open: openTemplateModal, close: closeTemplateModal }] = useDisclosure(false);
@@ -165,6 +177,16 @@ export function CarePlanPage(): JSX.Element | null {
       const plans = await medplum.searchResources('CarePlan', `subject=Patient/${id}&status=active`);
       const plan = plans[0];
       setCarePlan(plan);
+
+      // CD-08 linkage: tasks attached to this plan via Task.basedOn
+      if (plan?.id) {
+        const tasks = await medplum
+          .searchResources('Task', `based-on=CarePlan/${plan.id}&_sort=-_lastUpdated&_count=20`)
+          .catch(() => [] as Task[]);
+        setLinkedTasks(tasks);
+      } else {
+        setLinkedTasks([]);
+      }
 
       if (plan) {
         // Fetch goals linked to this care plan
@@ -613,6 +635,89 @@ export function CarePlanPage(): JSX.Element | null {
                   ))}
                 </Group>
               </>
+            )}
+
+            {/* Linked tasks (CD-08: Task.basedOn → CarePlan) */}
+            <Divider />
+            <Group justify="space-between">
+              <Group gap="xs">
+                <IconChecklist size={18} />
+                <Title order={4}>Linked tasks</Title>
+                <Badge variant="light">{linkedTasks.length}</Badge>
+              </Group>
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => navigate('/today')}
+              >
+                Add task
+              </Button>
+            </Group>
+            {linkedTasks.length === 0 ? (
+              <Text size="sm" c="dimmed">
+                No tasks linked to this plan yet. Tasks created from Today (or from the
+                /Task board) with this member selected will automatically attach here.
+              </Text>
+            ) : (
+              <Stack gap="xs">
+                {linkedTasks.map((task) => {
+                  const due = task.restriction?.period?.end?.slice(0, 10);
+                  return (
+                    <Group
+                      key={task.id}
+                      justify="space-between"
+                      wrap="nowrap"
+                      p="xs"
+                      style={{
+                        borderBottom: '1px solid var(--mantine-color-gray-2)',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => task.id && navigate(`/Task/${task.id}`)}
+                    >
+                      <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                        <Text size="sm" fw={500} c="blue" truncate>
+                          {task.code?.text ?? task.description ?? 'Untitled task'}
+                        </Text>
+                        <Group gap={6}>
+                          {task.owner?.display && (
+                            <Text size="xs" c="dimmed">
+                              {task.owner.display}
+                            </Text>
+                          )}
+                          {due && (
+                            <Text size="xs" c="dimmed" ff="monospace">
+                              · due {formatDate(due)}
+                            </Text>
+                          )}
+                        </Group>
+                      </Stack>
+                      <Group gap={6}>
+                        {task.priority && (
+                          <Badge
+                            color={
+                              task.priority === 'asap' || task.priority === 'urgent'
+                                ? 'red'
+                                : 'blue'
+                            }
+                            size="xs"
+                            variant="light"
+                          >
+                            {task.priority}
+                          </Badge>
+                        )}
+                        <Badge
+                          color={task.status === 'completed' ? 'green' : 'gray'}
+                          size="xs"
+                          variant="light"
+                        >
+                          {task.status}
+                        </Badge>
+                      </Group>
+                    </Group>
+                  );
+                })}
+              </Stack>
             )}
 
             {/* Progress Notes */}

@@ -4,6 +4,7 @@ import { Box, Button, Divider, Grid, Modal, Stack, Text, Textarea, TextInput } f
 import { notifications } from '@mantine/notifications';
 import { createReference, normalizeErrorString } from '@medplum/core';
 import type { CodeableConcept, Patient, Practitioner, Reference, Task } from '@medplum/fhirtypes';
+import { getActiveCarePlanRef } from '../../utils/care-plan-link';
 import {
   CodeableConceptInput,
   CodeInput,
@@ -57,6 +58,13 @@ export function NewTaskModal(props: NewTaskModalProps): JSX.Element {
     setIsSubmitting(true);
 
     try {
+      // CD-08 linkage: when a patient is selected, stamp basedOn with their
+      // active Care Plan so this task surfaces under the plan view.
+      const patientId = taskPatient?.reference?.startsWith('Patient/')
+        ? taskPatient.reference.replace('Patient/', '')
+        : undefined;
+      const carePlanRef = await getActiveCarePlanRef(medplum, patientId);
+
       const newTask: Task = {
         resourceType: 'Task',
         status: status,
@@ -67,6 +75,7 @@ export function NewTaskModal(props: NewTaskModalProps): JSX.Element {
         },
         description: description.trim() || undefined,
         for: taskPatient,
+        basedOn: carePlanRef ? [carePlanRef] : undefined,
         authoredOn: new Date().toISOString(),
         requester: profile ? createReference(profile) : undefined,
         owner: assignee,
@@ -85,7 +94,9 @@ export function NewTaskModal(props: NewTaskModalProps): JSX.Element {
       notifications.show({
         icon: <IconCircleCheck />,
         title: 'Success',
-        message: 'Task created successfully',
+        message: carePlanRef
+          ? 'Task created and linked to active Care Plan'
+          : 'Task created successfully',
       });
 
       onTaskCreated?.(createdTask);
