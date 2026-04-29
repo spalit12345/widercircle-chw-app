@@ -1,15 +1,22 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { Menu, UnstyledButton } from '@mantine/core';
+//
+// CMS Platform shell — port of Design v2 / ui_kits/cms_platform/app-shell.jsx.
+// 60px white left rail, icon-only nav, slate/navy icons with a light-gray
+// active pill, no global top bar. Role switcher and notification bell are
+// folded into the avatar menu at the bottom of the rail so we keep the v2
+// "no chrome" intent without losing the demo's role-flip moment.
+
+import { Indicator, Menu, UnstyledButton } from '@mantine/core';
 import { useMedplumProfile } from '@medplum/react';
 import {
   IconActivity,
-  IconAdjustmentsHorizontal,
+  IconAlertHexagon,
   IconBell,
   IconBriefcase2,
   IconCalendar,
   IconCash,
-  IconChevronDown,
+  IconChartHistogram,
   IconClipboardList,
   IconHome2,
   IconMessageCircle2,
@@ -17,11 +24,10 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import type { JSX, ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useRole } from '../auth/RoleContext';
-import { ROLE_LABELS, ROLES, type Role } from '../auth/roles';
-import type { Permission } from '../auth/roles';
+import { ROLE_LABELS, ROLES, type Permission, type Role } from '../auth/roles';
 import { recordRoleChange } from '../auth/audit';
 
 interface NavItem {
@@ -32,33 +38,54 @@ interface NavItem {
   match?: (pathname: string) => boolean;
   badge?: number;
   /**
-   * CM-13 AC-7 — when set, the nav item is hidden from roles that don't have
-   * the listed permission. The role-switch demo on stage relies on this so
-   * Billing disappears for CHW, Admin disappears for everyone except admins,
-   * etc.
+   * Hide the nav entry from roles that don't have the listed permission.
+   * The role-switch demo on stage relies on this so Billing disappears for
+   * CHW, Admin disappears for everyone except admins, etc.
    */
   requiresPermission?: Permission;
+  /** Optional separator gap before this item, per v2's grouped rail. */
+  separatorBefore?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Home', href: '/today', Icon: IconHome2, match: (p) => p === '/' || p.startsWith('/today') || p.startsWith('/getstarted') },
-  { id: 'queue', label: 'My queue', href: '/my-tasks', Icon: IconBriefcase2, match: (p) => p.startsWith('/my-tasks') || p.startsWith('/Task') || p.startsWith('/signoff-queue') || p.startsWith('/review-submission') },
+  {
+    id: 'members',
+    label: 'Members',
+    href: '/my-caseload',
+    Icon: IconSearch,
+    match: (p) => p.startsWith('/my-caseload') || p.startsWith('/Patient') || p.startsWith('/members'),
+    separatorBefore: true,
+  },
+  { id: 'queue', label: 'Caseload', href: '/my-tasks', Icon: IconBriefcase2, match: (p) => p.startsWith('/my-tasks') || p.startsWith('/Task') || p.startsWith('/signoff-queue') || p.startsWith('/review-submission') },
   { id: 'plans', label: 'Care plans', href: '/my-plans', Icon: IconClipboardList, match: (p) => p.startsWith('/my-plans') || p.startsWith('/plan-of-care') || p.startsWith('/plan-edit') || p.startsWith('/plan-review') || p.startsWith('/CarePlan'), requiresPermission: 'careplan.review' },
-  { id: 'members', label: 'Members', href: '/my-caseload', Icon: IconUsers, match: (p) => p.startsWith('/my-caseload') || p.startsWith('/Patient') || p.startsWith('/members') },
+  { id: 'circle', label: 'Circle', href: '/Communication', Icon: IconUsers, match: (p) => p.startsWith('/Spaces') },
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
-  { id: 'messaging', label: 'Messaging', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Spaces') || p.startsWith('/Fax') },
+  { id: 'messaging', label: 'Messages', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Fax') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing'), requiresPermission: 'billing.view' },
   { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking'), requiresPermission: 'referrals.manage' },
-  { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconAdjustmentsHorizontal, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin'), requiresPermission: 'admin.roles' },
+  { id: 'reports', label: 'Reports', href: '/admin/audit-log', Icon: IconChartHistogram, match: (p) => p.startsWith('/admin/audit-log'), requiresPermission: 'admin.roles' },
+  { id: 'alerts', label: 'Alerts', href: '/alerts', Icon: IconAlertHexagon, match: (p) => p.startsWith('/alerts') },
+  { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconBell, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin/roles') || p.startsWith('/admin/workflows'), requiresPermission: 'admin.roles', separatorBefore: true },
 ];
+
+const RAIL_BG = '#FFFFFF';
+const RAIL_BORDER = 'var(--wc-base-200, #E2E6E9)';
+const ICON_IDLE = 'var(--wc-base-600, #506D85)';
+const ICON_HOVER = 'var(--wc-base-800, #012B49)';
+const ICON_ACTIVE = 'var(--wc-base-800, #012B49)';
+const ACTIVE_BG = '#EEF1F3';
+const HOVER_BG = 'var(--wc-base-100, #F6F7F8)';
+const BADGE_BG = 'var(--wc-primary-500, #EA6424)';
+const AVATAR_BG = 'var(--wc-primary-500, #EA6424)';
 
 function LeftRail(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission } = useRole();
+
   const visibleNav = useMemo(
-    () =>
-      NAV_ITEMS.filter((it) => !it.requiresPermission || hasPermission(it.requiresPermission)),
+    () => NAV_ITEMS.filter((it) => !it.requiresPermission || hasPermission(it.requiresPermission)),
     [hasPermission]
   );
   const activeId = useMemo(() => {
@@ -67,21 +94,21 @@ function LeftRail(): JSX.Element {
   }, [location.pathname, visibleNav]);
 
   return (
-    <nav
-      aria-label="Primary"
+    <aside
+      aria-label="Primary navigation"
       style={{
-        width: 72,
-        background: 'var(--wc-base-700)',
-        color: '#fff',
+        width: 60,
+        flexShrink: 0,
+        background: RAIL_BG,
+        borderRight: `1px solid ${RAIL_BORDER}`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '16px 0',
-        gap: 4,
-        flexShrink: 0,
+        padding: '14px 0',
         position: 'sticky',
         top: 0,
         height: '100vh',
+        gap: 0,
       }}
     >
       <button
@@ -89,9 +116,10 @@ function LeftRail(): JSX.Element {
         onClick={() => navigate('/today')}
         title="Wider Circle"
         style={{
-          width: 40,
-          height: 40,
-          marginBottom: 12,
+          marginBottom: 14,
+          width: 38,
+          height: 30,
+          borderRadius: 8,
           background: 'transparent',
           border: 0,
           padding: 0,
@@ -101,65 +129,89 @@ function LeftRail(): JSX.Element {
           justifyContent: 'center',
         }}
       >
-        <img src="/wc-logo.svg" alt="Wider Circle" style={{ width: 34, height: 34 }} />
+        <img src="/wc-v2/wc-mark.svg" alt="Wider Circle" style={{ width: 26, height: 16, display: 'block' }} />
       </button>
-      {visibleNav.map((it) => {
-        const sel = it.id === activeId;
-        return (
-          <button
-            key={it.id}
-            type="button"
-            onClick={() => navigate(it.href)}
-            title={it.label}
-            style={{
-              position: 'relative',
-              width: 52,
-              height: 52,
-              borderRadius: 15,
-              border: 0,
-              cursor: 'pointer',
-              background: sel ? 'rgba(242,115,33,0.15)' : 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: sel ? 'var(--wc-brand-200)' : 'rgba(255,255,255,0.6)',
-              transition: 'background .15s, color .15s',
-            }}
-            onMouseEnter={(e) => {
-              if (!sel) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!sel) {
-                e.currentTarget.style.background = 'transparent';
-              }
-            }}
-          >
-            <it.Icon size={22} stroke={sel ? 2.2 : 1.8} />
-            {sel && (
-              <span
-                style={{
-                  position: 'absolute',
-                  left: -12,
-                  top: 14,
-                  bottom: 14,
-                  width: 3,
-                  borderRadius: '0 3px 3px 0',
-                  background: 'var(--wc-brand-500)',
-                }}
-              />
-            )}
-          </button>
-        );
-      })}
-      <div style={{ flex: 1 }} />
-      <ProfileDot />
-    </nav>
+
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: '100%' }}>
+        {visibleNav.map((it) => {
+          const sel = it.id === activeId;
+          return (
+            <RailButton
+              key={it.id}
+              selected={sel}
+              label={it.label}
+              separatorBefore={it.separatorBefore}
+              onClick={() => navigate(it.href)}
+            >
+              <it.Icon size={22} stroke={sel ? 1.9 : 1.65} />
+            </RailButton>
+          );
+        })}
+      </nav>
+
+      <ProfileMenu />
+    </aside>
   );
 }
 
-function ProfileDot(): JSX.Element {
+function RailButton({
+  children,
+  label,
+  selected,
+  separatorBefore,
+  onClick,
+}: {
+  children: ReactNode;
+  label: string;
+  selected?: boolean;
+  separatorBefore?: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <>
+      {separatorBefore && <div style={{ height: 6 }} />}
+      <button
+        type="button"
+        onClick={onClick}
+        title={label}
+        aria-label={label}
+        aria-current={selected ? 'page' : undefined}
+        style={{
+          position: 'relative',
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          border: 0,
+          cursor: 'pointer',
+          background: selected ? ACTIVE_BG : 'transparent',
+          color: selected ? ICON_ACTIVE : ICON_IDLE,
+          boxShadow: selected ? `inset 0 0 0 1px ${RAIL_BORDER}` : 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'background .12s ease, color .12s ease',
+        }}
+        onMouseEnter={(e) => {
+          if (!selected) {
+            e.currentTarget.style.color = ICON_HOVER;
+            e.currentTarget.style.background = HOVER_BG;
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!selected) {
+            e.currentTarget.style.color = ICON_IDLE;
+            e.currentTarget.style.background = 'transparent';
+          }
+        }}
+      >
+        {children}
+      </button>
+    </>
+  );
+}
+
+function ProfileMenu(): JSX.Element {
+  const { role, setRole } = useRole();
   const profile = useMedplumProfile();
   const initials = useMemo(() => {
     const name = profile?.name?.[0];
@@ -168,167 +220,41 @@ function ProfileDot(): JSX.Element {
     const family = name.family?.[0] ?? '';
     return `${given}${family}`.toUpperCase() || 'WC';
   }, [profile]);
-  return (
-    <div
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: '50%',
-        background: 'var(--wc-brand-200)',
-        color: 'var(--wc-base-700)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: 700,
-        fontFamily: 'Montserrat, system-ui, sans-serif',
-        fontSize: 13,
-      }}
-    >
-      {initials}
-    </div>
-  );
-}
-
-function TopBar(): JSX.Element {
-  const navigate = useNavigate();
-  const [query, setQuery] = useState('');
-
-  const onSubmit = (e: React.FormEvent): void => {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
-    navigate(`/Patient?name=${encodeURIComponent(q)}`);
-  };
-
-  return (
-    <div
-      style={{
-        height: 60,
-        borderBottom: '1px solid var(--wc-base-200)',
-        background: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 24px',
-        gap: 16,
-        position: 'sticky',
-        top: 0,
-        zIndex: 20,
-      }}
-    >
-      <form onSubmit={onSubmit} style={{ flex: 1, maxWidth: 520, position: 'relative' }}>
-        <IconSearch
-          size={16}
-          style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--wc-base-500)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search members, cases, events…  (⌘K)"
-          style={{
-            width: '100%',
-            height: 38,
-            border: '1px solid var(--wc-base-200)',
-            borderRadius: 12,
-            padding: '0 12px 0 36px',
-            fontFamily: 'var(--wc-font-body, Inter, system-ui, sans-serif)',
-            fontSize: 14,
-            background: 'var(--wc-base-50)',
-            outline: 'none',
-            boxSizing: 'border-box',
-            color: 'var(--wc-base-700)',
-          }}
-        />
-      </form>
-      <div style={{ flex: 1 }} />
-      <RoleBadge />
-      <button
-        type="button"
-        title="Notifications"
-        style={{
-          background: 'var(--wc-base-50)',
-          border: '1px solid var(--wc-base-200)',
-          borderRadius: 12,
-          width: 38,
-          height: 38,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          position: 'relative',
-        }}
-      >
-        <IconBell size={18} stroke={1.8} color="var(--wc-base-700)" />
-        <span
-          style={{
-            position: 'absolute',
-            top: 8,
-            right: 10,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: 'var(--wc-brand-500)',
-            border: '2px solid #fff',
-          }}
-        />
-      </button>
-    </div>
-  );
-}
-
-function RoleBadge(): JSX.Element {
-  const { role, setRole } = useRole();
-  const profile = useMedplumProfile();
 
   const onPick = (next: Role): void => {
     if (next === role) return;
     setRole(next);
-    recordRoleChange({ from: role, to: next, actor: profile }).catch(() => {
-      // Audit is best-effort; don't block the role switch on a failed write.
-    });
+    recordRoleChange({ from: role, to: next, actor: profile }).catch(() => undefined);
   };
 
   return (
-    <Menu shadow="md" position="bottom-end" withinPortal>
+    <Menu shadow="md" position="right-end" withinPortal offset={6}>
       <Menu.Target>
-        <UnstyledButton
-          aria-label="Switch active role"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            background: 'var(--wc-base-100, #F1F1EE)',
-            color: 'var(--wc-base-700)',
-            borderRadius: 30,
-            fontWeight: 600,
-            fontFamily: 'var(--wc-font-body, Inter, system-ui, sans-serif)',
-            fontSize: 12,
-            padding: '3px 10px',
-            height: 22,
-            lineHeight: 1,
-            cursor: 'pointer',
-          }}
-        >
-          <span
+        <Indicator color="orange" size={8} offset={4} withBorder>
+          <UnstyledButton
+            aria-label="Account and role"
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'var(--wc-brand-500, #F27321)',
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              background: AVATAR_BG,
+              color: '#FFFFFF',
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              marginTop: 8,
+              marginBottom: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
-          {ROLE_LABELS[role]}
-          <IconChevronDown size={12} stroke={2} />
-        </UnstyledButton>
+          >
+            {initials}
+          </UnstyledButton>
+        </Indicator>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>Demo role (DA-14)</Menu.Label>
+        <Menu.Label>Demo role</Menu.Label>
         {ROLES.map((r) => (
           <Menu.Item
             key={r}
@@ -338,6 +264,9 @@ function RoleBadge(): JSX.Element {
             {ROLE_LABELS[r]}
           </Menu.Item>
         ))}
+        <Menu.Divider />
+        <Menu.Label>Active role</Menu.Label>
+        <Menu.Item disabled>{ROLE_LABELS[role]}</Menu.Item>
       </Menu.Dropdown>
     </Menu>
   );
@@ -345,7 +274,7 @@ function RoleBadge(): JSX.Element {
 
 export function WcShell({ children }: { children: ReactNode }): JSX.Element {
   useEffect(() => {
-    document.body.style.background = 'var(--wc-surface-page, #fff)';
+    document.body.style.background = '#FFFFFF';
     return () => {
       document.body.style.background = '';
     };
@@ -355,12 +284,13 @@ export function WcShell({ children }: { children: ReactNode }): JSX.Element {
       style={{
         display: 'flex',
         minHeight: '100vh',
-        background: 'var(--wc-surface-page, #fff)',
+        background: '#FFFFFF',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        color: 'var(--wc-base-800, #012B49)',
       }}
     >
       <LeftRail />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <TopBar />
         <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
       </div>
     </div>
