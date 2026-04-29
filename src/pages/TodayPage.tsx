@@ -20,7 +20,8 @@ import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDate, formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Appointment, Patient, Task } from '@medplum/fhirtypes';
-import { Document, useMedplum } from '@medplum/react';
+import { useMedplum } from '@medplum/react';
+import { Today360View } from '../components/Today360View';
 import {
   IconCheck,
   IconClipboardCheck,
@@ -381,152 +382,40 @@ export function TodayPage(): JSX.Element {
     );
   };
 
+  const greetingName =
+    practitionerName.split(' ')[0] || 'CHW';
+  const patientLabelFor = (ref: string | undefined): string | undefined => {
+    if (!ref) return undefined;
+    const id = ref.startsWith('Patient/') ? ref.slice('Patient/'.length) : ref;
+    return patients.find((p) => p.value === id)?.label;
+  };
+
+  if (loading) {
+    return (
+      <Center py="xl">
+        <Loader size="lg" />
+      </Center>
+    );
+  }
+
   return (
-    <Document>
-      <Stack gap="lg">
-        <Group justify="space-between" align="flex-end">
-          <Stack gap={2}>
-            <Title order={2}>
-              {greeting()}, {practitionerName}.
-            </Title>
-            <Text c="dimmed" size="sm">
-              {formatDate(today)}
-            </Text>
-          </Stack>
-          <Button leftSection={<IconPlus size={16} />} onClick={openModal}>
-            New task
-          </Button>
-        </Group>
-
-        {/* Quick actions — every demo-relevant standalone flow lives behind one
-            click. Permissions hide actions the active role can't perform so the
-            on-stage role-switch trims the rail to what each persona uses. */}
-        {visibleQuickActions.length > 0 && (
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Title order={5}>Quick actions</Title>
-                <Text size="xs" c="dimmed">
-                  Launch the workflows you use most — no URL typing required.
-                </Text>
-              </Group>
-              <Group gap="xs" wrap="wrap">
-                {visibleQuickActions.map((action) => (
-                  <Button
-                    key={action.href}
-                    variant="light"
-                    color="blue"
-                    leftSection={<action.icon size={14} />}
-                    onClick={() => navigate(action.href)}
-                    title={action.description}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </Group>
-            </Stack>
-          </Card>
-        )}
-
-        {loading ? (
-          <Center py="xl">
-            <Loader size="lg" />
-          </Center>
-        ) : (
-          <>
-            {/* Schedule today */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={4}>Schedule today</Title>
-                  <Badge variant="light">{scheduleToday.length}</Badge>
-                </Group>
-                {scheduleToday.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    Clear day.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">
-                    {scheduleToday.map((appt) => {
-                      const patient = appt.participant?.find((p) =>
-                        p.actor?.reference?.startsWith('Patient/')
-                      );
-                      const patientId = patient?.actor?.reference?.replace('Patient/', '');
-                      const type = appt.appointmentType?.coding?.[0]?.code ?? appt.appointmentType?.text ?? '—';
-                      return (
-                        <Group
-                          key={appt.id}
-                          justify="space-between"
-                          wrap="nowrap"
-                          p="sm"
-                          style={{ borderRadius: 'var(--mantine-radius-sm)' }}
-                        >
-                          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                            <Text fw={600} size="sm" ff="monospace" w={72}>
-                              {appointmentTime(appt)}
-                            </Text>
-                            <Text
-                              size="sm"
-                              c={patientId ? 'blue' : undefined}
-                              style={patientId ? { cursor: 'pointer' } : undefined}
-                              onClick={() => patientId && navigate(`/Patient/${patientId}`)}
-                              truncate
-                            >
-                              {patient?.actor?.display ?? '—'}
-                            </Text>
-                          </Group>
-                          <Badge variant="light" size="sm">
-                            {type}
-                          </Badge>
-                        </Group>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            {/* Due today */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={4}>Due today</Title>
-                  <Badge variant="light">{dueToday.length}</Badge>
-                </Group>
-                {dueToday.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    Nothing due today — nice.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">{dueToday.map((t) => taskRow(t, false))}</Stack>
-                )}
-              </Stack>
-            </Card>
-
-            {/* Overdue */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={4}>Overdue</Title>
-                  <Badge
-                    color={overdue.length > 0 ? 'red' : 'gray'}
-                    variant={overdue.length > 0 ? 'filled' : 'light'}
-                  >
-                    {overdue.length}
-                  </Badge>
-                </Group>
-                {overdue.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    No overdue items.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">{overdue.map((t) => taskRow(t, true))}</Stack>
-                )}
-              </Stack>
-            </Card>
-          </>
-        )}
-      </Stack>
+    <>
+      <Today360View
+        greetingName={greetingName}
+        todayLabel={today}
+        scheduleToday={scheduleToday}
+        dueToday={dueToday}
+        overdue={overdue}
+        appointmentTime={appointmentTime}
+        patientLabelFor={patientLabelFor}
+        onNewTask={openModal}
+        onOpenAppointment={(_apptId, patientId) => {
+          if (patientId) navigate(`/members/${patientId}`);
+        }}
+        onOpenTask={(taskId) => taskId && navigate(`/Task/${taskId}`)}
+        onOpenPatient={(patientId) => patientId && navigate(`/Patient/${patientId}`)}
+        onNavigate={navigate}
+      />
 
       <Modal opened={modalOpened} onClose={closeModal} title="New task" size="md">
         <Stack gap="md">
@@ -576,6 +465,6 @@ export function TodayPage(): JSX.Element {
           </Button>
         </Stack>
       </Modal>
-    </Document>
+    </>
   );
 }
