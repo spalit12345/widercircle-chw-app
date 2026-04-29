@@ -92,13 +92,13 @@ describe('ConsentCapturePage — render', () => {
     vi.clearAllMocks();
   });
 
-  test('renders title, description, and member-required placeholder', async () => {
+  test('renders title, description, and member picker before any patient is selected', async () => {
     vi.spyOn(medplum, 'searchResources').mockResolvedValue([] as never);
     setup();
     await waitFor(() => {
       expect(screen.getByText('Telehealth + CHI consent')).toBeInTheDocument();
       expect(screen.getByText(/Capture or verify consent before launching/)).toBeInTheDocument();
-      expect(screen.getByText('No member selected')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Pick a member')).toBeInTheDocument();
     });
   });
 
