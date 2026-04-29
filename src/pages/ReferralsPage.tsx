@@ -242,11 +242,24 @@ export function ReferralsPage(): JSX.Element {
     [tasks]
   );
 
-  const supplierOptions = SUPPLIER_DIRECTORY.map((s) => ({
-    value: s.id,
-    label: `${s.name} · ${s.serviceLine}`,
-    group: s.category === 'partner' ? 'Partner suppliers' : 'Internal teams',
-  }));
+  // Mantine v8 Select expects grouped data as
+  // [{ group: '...', items: [{value, label}, ...] }] — the v7 flat shorthand
+  // ({value, label, group}) crashes parseItem on undefined .items. Grouping
+  // upfront keeps the supplier dropdown rendering on member selection.
+  const supplierOptions = useMemo(() => {
+    const partner = SUPPLIER_DIRECTORY.filter((s) => s.category === 'partner').map((s) => ({
+      value: s.id,
+      label: `${s.name} · ${s.serviceLine}`,
+    }));
+    const internal = SUPPLIER_DIRECTORY.filter((s) => s.category !== 'partner').map((s) => ({
+      value: s.id,
+      label: `${s.name} · ${s.serviceLine}`,
+    }));
+    const out: Array<{ group: string; items: Array<{ value: string; label: string }> }> = [];
+    if (partner.length > 0) out.push({ group: 'Partner suppliers', items: partner });
+    if (internal.length > 0) out.push({ group: 'Internal teams', items: internal });
+    return out;
+  }, []);
 
   if (loading) {
     return (
