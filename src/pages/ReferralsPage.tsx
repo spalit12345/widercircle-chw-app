@@ -272,12 +272,50 @@ export function ReferralsPage(): JSX.Element {
   return (
     <Document>
       <Stack gap="md">
-        <Stack gap={2}>
-          <Title order={2}>SDoH Referrals (CM-05)</Title>
-          <Text c="dimmed" size="sm">
-            Refer a member to a partner supplier or internal team. Status lifecycle: Referred → Accepted → Fulfilled → Closed.
-          </Text>
-        </Stack>
+        {/* v2 status ribbon */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '12px 0',
+            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              color: 'var(--wc-info-700, #015F5D)',
+              textTransform: 'uppercase',
+            }}
+          >
+            CM-05 · SDoH Referrals
+          </span>
+          <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
+          <span
+            style={{
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--wc-base-800, #012B49)',
+            }}
+          >
+            Closed-loop community partner referrals
+          </span>
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              color: 'var(--wc-base-600, #506D85)',
+            }}
+          >
+            Lifecycle: Referred → Accepted → Fulfilled → Closed
+          </span>
+        </div>
 
         <Select
           label="Member"

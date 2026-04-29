@@ -474,23 +474,57 @@ export function SDoHAssessmentPage(): JSX.Element {
   return (
     <Document>
       <Stack gap="lg">
-        {/* Sticky header strip */}
-        <Card withBorder radius="md" padding="md" style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-          <Stack gap="xs">
-            <Group justify="space-between" wrap="nowrap">
-              <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-                <IconHeartHandshake size={20} color="var(--mantine-color-grape-7)" />
-                <Title order={4} style={{ minWidth: 0 }}>
-                  SDoH Assessment
-                </Title>
-              </Group>
-              <Text size="xs" c="dimmed" ff="monospace">
-                Question {answered} of {total}
-              </Text>
-            </Group>
+        {/* v2 status ribbon — eyebrow + assessment name + progress chip */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '12px 0',
+            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
+            position: 'sticky',
+            top: 0,
+            background: '#fff',
+            zIndex: 5,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              color: 'var(--wc-info-700, #015F5D)',
+              textTransform: 'uppercase',
+            }}
+          >
+            CD-19 · SDoH Assessment
+          </span>
+          <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
+          <span
+            style={{
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--wc-base-800, #012B49)',
+            }}
+          >
+            PRAPARE-aligned screener
+          </span>
+          <span
+            style={{
+              fontFamily: 'Azeret Mono, monospace',
+              fontSize: 11,
+              color: 'var(--wc-base-600, #506D85)',
+            }}
+          >
+            Question {answered} of {total}
+          </span>
+          <div style={{ flex: 1, minWidth: 200 }}>
             <Progress value={total === 0 ? 0 : (answered / total) * 100} size="sm" color="grape" />
-          </Stack>
-        </Card>
+          </div>
+        </div>
 
         <Group align="flex-end" gap="sm" wrap="nowrap">
           <Select
