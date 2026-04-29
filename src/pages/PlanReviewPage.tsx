@@ -17,24 +17,16 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
-import type {
-  CarePlan,
-  CarePlanActivity,
-  Communication,
-  Patient,
-  Provenance,
-} from '@medplum/fhirtypes';
+import type { CarePlan, CarePlanActivity, Communication, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconCheck, IconGitCompare, IconHeartHandshake, IconLock } from '@tabler/icons-react';
+import { IconCheck, IconGitCompare, IconLock } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { useRole } from '../auth/RoleContext';
 import { SignaturePad } from '../components/SignaturePad';
-import { emitAudit } from '../utils/audit';
 
 const SIGNATURE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-signature';
-const MEMBER_SIGNATURE_BLOB_EXT = 'https://widercircle.com/fhir/StructureDefinition/member-signature-blob';
-const MEMBER_SIGNATURE_RELATIONSHIP_EXT = 'https://widercircle.com/fhir/StructureDefinition/member-signature-relationship';
 
 // Plan acknowledgments are recorded as Communication resources with
 // category.coding.code='plan-acknowledgment'. Plain FHIR Communication works
@@ -110,10 +102,12 @@ const activityToReviewItem = (
 export function PlanReviewPage(): JSX.Element {
   const medplum = useMedplum();
   const profile = medplum.getProfile();
+  const { hasPermission } = useRole();
+  const canSignAsProvider = hasPermission('review.signoff');
   const currentUserRef = profile ? `Practitioner/${profile.id}` : undefined;
   const currentUserLabel = profile
-    ? `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() || 'Clinician'
-    : 'Clinician';
+    ? `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() || 'Care Provider'
+    : 'Care Provider';
 
   const [searchParams] = useSearchParams();
   const initialPatient = searchParams.get('patient') ?? '';
@@ -122,14 +116,10 @@ export function PlanReviewPage(): JSX.Element {
   const [plan, setPlan] = useState<CarePlan | undefined>();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [acks, setAcks] = useState<Communication[]>([]);
-  const [memberSignatures, setMemberSignatures] = useState<Provenance[]>([]);
   const [versionHistory, setVersionHistory] = useState<CarePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [acking, setAcking] = useState(false);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [memberSignatureDataUrl, setMemberSignatureDataUrl] = useState<string | null>(null);
-  const [memberSignatureRelationship, setMemberSignatureRelationship] = useState<string>('member');
-  const [signingMember, setSigningMember] = useState(false);
   const [diffOpened, { open: openDiff, close: closeDiff }] = useDisclosure(false);
 
   const loadPatients = useCallback(async () => {
@@ -164,7 +154,8 @@ export function PlanReviewPage(): JSX.Element {
           label: `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient',
         }))
       );
-      setSelectedPatient((prev) => prev || ordered[0]?.id || '');
+      // Don't auto-select: leave the dropdown empty unless a ?patient= deep
+      // link supplied one in initial state. CHW must pick the member.
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {
@@ -190,23 +181,13 @@ export function PlanReviewPage(): JSX.Element {
         setItems(latest ? itemsFromPlan(latest, currentUserRef) : []);
         setVersionHistory(plans);
         if (latest?.id) {
-          const [ackResults, provenanceResults] = await Promise.all([
-            medplum.searchResources(
-              'Communication',
-              `based-on=CarePlan/${latest.id}&category=${ACK_CATEGORY_CODE}&_sort=-_lastUpdated&_count=10`
-            ),
-            medplum
-              .searchResources(
-                'Provenance',
-                `target=CarePlan/${latest.id}&_sort=-_lastUpdated&_count=10`
-              )
-              .catch(() => [] as Provenance[]),
-          ]);
+          const ackResults = await medplum.searchResources(
+            'Communication',
+            `based-on=CarePlan/${latest.id}&category=${ACK_CATEGORY_CODE}&_sort=-_lastUpdated&_count=10`
+          );
           setAcks(ackResults);
-          setMemberSignatures(provenanceResults as Provenance[]);
         } else {
           setAcks([]);
-          setMemberSignatures([]);
         }
       } catch (err) {
         showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -252,7 +233,7 @@ export function PlanReviewPage(): JSX.Element {
         basedOn: [{ reference: `CarePlan/${plan.id}` }],
         payload: [
           {
-            contentString: `Plan of Care acknowledged by ${currentUserLabel} on ${now}.`,
+            contentString: `Plan of Care signed by ${currentUserLabel} (Care Provider) on ${now}.`,
           },
           {
             contentAttachment: {
@@ -275,7 +256,7 @@ export function PlanReviewPage(): JSX.Element {
         ],
       };
       await medplum.createResource<Communication>(ack);
-      showNotification({ color: 'green', message: 'Plan acknowledged with signature' });
+      showNotification({ color: 'green', message: 'Care Provider signature captured' });
       setSignatureDataUrl(null);
       await loadPlan(selectedPatient);
     } catch (err) {
@@ -285,104 +266,12 @@ export function PlanReviewPage(): JSX.Element {
     }
   }, [plan, currentUserRef, currentUserLabel, medplum, selectedPatient, loadPlan, signatureDataUrl]);
 
-  // CM-13 AC-3 — capture the member's signature on the latest Plan version.
-  // Writes a Provenance whose target is the CarePlan, agent is the
-  // Practitioner who witnessed it, signature.who carries the member, and
-  // signature.data carries the PNG blob.
-  const captureMemberSignature = useCallback(async () => {
-    if (!plan?.id || !plan.subject || !memberSignatureDataUrl) return;
-    setSigningMember(true);
-    try {
-      const now = new Date().toISOString();
-      const blobBase64 = memberSignatureDataUrl.replace(/^data:image\/png;base64,/, '');
-      const provenance: Provenance = {
-        resourceType: 'Provenance',
-        target: [{ reference: `CarePlan/${plan.id}` }],
-        recorded: now,
-        agent: [
-          {
-            type: {
-              coding: [
-                {
-                  system: 'http://terminology.hl7.org/CodeSystem/provenance-participant-type',
-                  code: 'witness',
-                  display: 'Witness',
-                },
-              ],
-            },
-            who: currentUserRef
-              ? { reference: currentUserRef, display: currentUserLabel }
-              : undefined,
-          },
-        ],
-        signature: [
-          {
-            type: [
-              {
-                system: 'urn:iso-astm:E1762-95:2013',
-                code: '1.2.840.10065.1.12.1.7',
-                display: "Consent Signature",
-              },
-            ],
-            when: now,
-            who: plan.subject,
-            sigFormat: 'image/png',
-            data: blobBase64,
-          },
-        ],
-        extension: [
-          {
-            url: MEMBER_SIGNATURE_BLOB_EXT,
-            valueAttachment: {
-              contentType: 'image/png',
-              creation: now,
-              data: blobBase64,
-            },
-          },
-          {
-            url: MEMBER_SIGNATURE_RELATIONSHIP_EXT,
-            valueString: memberSignatureRelationship,
-          },
-        ],
-      };
-      const saved = await medplum.createResource<Provenance>(provenance);
-      // CD-19/CM-13 AC-3 — audit the member-signature event.
-      void emitAudit(medplum, {
-        action: 'careplan.signed',
-        patientRef: plan.subject,
-        carePlanRef: { reference: `CarePlan/${plan.id}` },
-        meta: {
-          signedBy: memberSignatureRelationship,
-          provenanceId: saved.id ?? '',
-        },
-      });
-      showNotification({ color: 'green', message: 'Member signature captured' });
-      setMemberSignatureDataUrl(null);
-      await loadPlan(selectedPatient);
-    } catch (err) {
-      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
-    } finally {
-      setSigningMember(false);
-    }
-  }, [
-    plan,
-    memberSignatureDataUrl,
-    memberSignatureRelationship,
-    currentUserRef,
-    currentUserLabel,
-    medplum,
-    selectedPatient,
-    loadPlan,
-  ]);
-
   const { mine, others } = useMemo(() => partitionForReview(items), [items]);
 
   const alreadyAcked = useMemo(() => {
     if (!plan?.id || !currentUserRef) return false;
     return acks.some((a) => a.sender?.reference === currentUserRef);
   }, [acks, plan?.id, currentUserRef]);
-
-  const memberSignedThisPlan = memberSignatures.length > 0;
 
   // CD-08 AC-3 — diff against the previous Plan version. Three buckets:
   // added items (in latest, not in previous), removed (in previous, not in
@@ -460,16 +349,6 @@ export function PlanReviewPage(): JSX.Element {
                 <Group justify="space-between" wrap="wrap">
                   <Title order={4}>Care Plan for {plan.subject?.display ?? 'member'}</Title>
                   <Group gap="xs">
-                    {memberSignedThisPlan && (
-                      <Badge
-                        color="green"
-                        variant="light"
-                        leftSection={<IconHeartHandshake size={12} />}
-                        size="md"
-                      >
-                        Signed by member
-                      </Badge>
-                    )}
                     {versionHistory.length > 1 && (
                       <Button
                         size="xs"
@@ -542,109 +421,29 @@ export function PlanReviewPage(): JSX.Element {
 
             <Divider />
 
-            {/* CM-13 AC-3 — member signature on the Plan of Care. The CHW
-                captures the member's signature in front of them; stored as a
-                Provenance with signature.data = PNG blob. Distinct from the
-                reviewer-acknowledgment Communication below. */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between" align="flex-start" wrap="wrap">
-                  <Stack gap={2}>
-                    <Title order={5}>Member signature on Plan of Care</Title>
-                    <Text size="xs" c="dimmed">
-                      Per CM-13 AC-3 the member signs the plan in front of the CHW. The PNG is
-                      stored on a Provenance resource targeting this CarePlan version with the
-                      witness Practitioner attached.
-                    </Text>
-                  </Stack>
-                  {memberSignedThisPlan && (
-                    <Badge
-                      color="green"
-                      variant="light"
-                      leftSection={<IconHeartHandshake size={12} />}
-                    >
-                      {memberSignatures.length} signature
-                      {memberSignatures.length === 1 ? '' : 's'} on file
-                    </Badge>
-                  )}
-                </Group>
-                <SignaturePad onChange={setMemberSignatureDataUrl} label="Member signature" />
-                <Select
-                  label="Signed by"
-                  data={[
-                    { value: 'member', label: 'Member' },
-                    { value: 'guardian', label: 'Legal guardian' },
-                    { value: 'authorized-representative', label: 'Authorized representative' },
-                  ]}
-                  value={memberSignatureRelationship}
-                  onChange={(v) => setMemberSignatureRelationship(v ?? 'member')}
-                  allowDeselect={false}
-                  size="xs"
-                  w={260}
-                />
-                <Group justify="flex-end">
-                  <Button
-                    color="grape"
-                    leftSection={<IconHeartHandshake size={16} />}
-                    onClick={captureMemberSignature}
-                    loading={signingMember}
-                    disabled={signingMember || !plan || !memberSignatureDataUrl}
-                  >
-                    Capture member signature
-                  </Button>
-                </Group>
-                {memberSignedThisPlan && (
-                  <Stack gap={4}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
-                      Past member signatures
-                    </Text>
-                    {memberSignatures.slice(0, 5).map((p) => {
-                      const blob = p.signature?.[0]?.data;
-                      return (
-                        <Group key={p.id} gap="sm" wrap="nowrap">
-                          {blob && (
-                            <img
-                              src={`data:image/png;base64,${blob}`}
-                              alt="Member signature"
-                              style={{
-                                height: 32,
-                                border: '1px solid var(--mantine-color-gray-3)',
-                                borderRadius: 4,
-                                background: '#fff',
-                              }}
-                            />
-                          )}
-                          <Text size="xs" c="dimmed" ff="monospace">
-                            {p.recorded ? formatDateTime(p.recorded) : ''} ·{' '}
-                            {p.extension?.find((e) => e.url === MEMBER_SIGNATURE_RELATIONSHIP_EXT)
-                              ?.valueString ?? 'member'}
-                          </Text>
-                        </Group>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
             {alreadyAcked ? (
               <Group justify="space-between" wrap="wrap">
                 <Text size="xs" c="dimmed" style={{ maxWidth: 400 }}>
-                  You already acknowledged this plan. Acknowledgments are immutable.
+                  You already signed this plan. Signatures are immutable.
                 </Text>
                 <Badge color="green" variant="light" leftSection={<IconCheck size={12} />} size="lg">
-                  You acknowledged this plan
+                  You signed this plan
                 </Badge>
               </Group>
+            ) : !canSignAsProvider ? (
+              <Alert color="gray" variant="light" icon={<IconLock size={16} />} title="Care Provider sign-off required">
+                <Text size="sm">
+                  Only a Care Provider (MD) can sign this plan. Switch to the Care Provider role to capture the signature, or surface this plan to a Provider via /signoff-queue.
+                </Text>
+              </Alert>
             ) : (
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
-                  <Title order={5}>Acknowledge with member signature</Title>
+                  <Title order={5}>Care Provider signature</Title>
                   <Text size="xs" c="dimmed">
-                    Capture the reviewer's signature, then acknowledge. The PNG is stored on the Communication
-                    resource for audit. Acknowledgments are immutable and notify the Provider.
+                    The signing Care Provider draws their signature below. The PNG is stored on the Communication resource for audit. Signatures are immutable.
                   </Text>
-                  <SignaturePad onChange={setSignatureDataUrl} />
+                  <SignaturePad onChange={setSignatureDataUrl} label="Care Provider signature" />
                   <Group justify="flex-end">
                     <Button
                       color="blue"
@@ -653,7 +452,7 @@ export function PlanReviewPage(): JSX.Element {
                       loading={acking}
                       disabled={acking || !plan || !signatureDataUrl}
                     >
-                      Acknowledge with signature
+                      Sign as Care Provider
                     </Button>
                   </Group>
                 </Stack>
@@ -664,7 +463,7 @@ export function PlanReviewPage(): JSX.Element {
               <Card withBorder radius="md" padding="md">
                 <Stack gap="sm">
                   <Group justify="space-between">
-                    <Title order={5}>Acknowledgments</Title>
+                    <Title order={5}>Care Provider signatures</Title>
                     <Badge variant="light">{acks.length}</Badge>
                   </Group>
                   <Stack gap="xs">

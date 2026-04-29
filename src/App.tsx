@@ -71,6 +71,8 @@ import { RoleManagementPage } from './pages/RoleManagementPage';
 import { AuditEventLogPage } from './pages/AuditEventLogPage';
 import { WorkflowBuilderPage } from './pages/WorkflowBuilderPage';
 import { MemberContextPage } from './pages/MemberContextPage';
+import { RelationshipsManagePage } from './pages/RelationshipsManagePage';
+import { MyCarePlansPage } from './pages/MyCarePlansPage';
 import { ReferralsPage } from './pages/ReferralsPage';
 
 export function App(): JSX.Element | null {
@@ -98,6 +100,15 @@ export function App(): JSX.Element | null {
               <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/Patient/new" element={<ResourceCreatePage />} />
               <Route path="/members/:patientId" element={<MemberContextPage />} />
+              <Route path="/members/:patientId/relationships" element={<RelationshipsManagePage />} />
+              <Route
+                path="/my-plans"
+                element={
+                  <RequirePermission permission="careplan.review">
+                    <MyCarePlansPage />
+                  </RequirePermission>
+                }
+              />
               <Route path="/Patient/:patientId" element={<PatientPage />}>
                 <Route path="careplan" element={<WCCarePlanPage />} />
                 <Route path="billing" element={<WCBillingPage />} />

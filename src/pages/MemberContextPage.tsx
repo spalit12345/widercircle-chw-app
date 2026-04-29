@@ -880,7 +880,7 @@ export function MemberContextPage(): JSX.Element {
             <RelationshipsCard
               rows={relationshipRows}
               patientId={patientId}
-              onEditExternal={() => navigate(`/RelatedPerson?patient=Patient/${patientId}`)}
+              onEditExternal={() => navigate(`/members/${patientId}/relationships`)}
             />
           </Grid.Col>
 
@@ -1514,7 +1514,7 @@ function RelationshipsCard({
               onClick={onEditExternal}
               disabled={!patientId}
             >
-              Manage RelatedPerson records
+              Edit
             </Button>
           </Stack>
         ) : (
@@ -1540,7 +1540,7 @@ function RelationshipsCard({
                 onClick={onEditExternal}
                 disabled={!patientId}
               >
-                Edit on Patient form
+                Edit
               </Button>
             </Group>
           </Stack>

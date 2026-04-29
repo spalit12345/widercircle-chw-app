@@ -9,6 +9,7 @@ import {
   Center,
   Group,
   Loader,
+  Modal,
   Select,
   Stack,
   Text,
@@ -16,13 +17,15 @@ import {
   Textarea,
   Title,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { CarePlan, CarePlanActivity, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconCheck, IconDotsVertical, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconCalendar, IconCheck, IconDotsVertical, IconPencil, IconPlus, IconTag, IconTrash, IconUser } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { emitAudit } from '../utils/audit';
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
@@ -46,14 +49,37 @@ const STATUS_COLORS: Record<ActionStatus, string> = {
 
 export const AUTO_SAVE_MS = 30_000;
 
+export const OWNER_ROLE_OPTIONS = [
+  'CHW',
+  'Care Provider',
+  'Case Manager',
+  'Member',
+  'Caregiver',
+  'Other',
+] as const;
+export type OwnerRole = (typeof OWNER_ROLE_OPTIONS)[number];
+
+export const CATEGORY_OPTIONS = [
+  'Clinical',
+  'Social',
+  'Behavioral',
+  'Logistical',
+  'Other',
+] as const;
+export type ItemCategory = (typeof CATEGORY_OPTIONS)[number];
+
 export interface PlanItemDraft {
   id: string;
   title: string;
   description: string;
+  ownerRole: OwnerRole;
+  ownerName?: string;
   dueDate?: string;
   status: ActionStatus;
-  category?: string;
+  category?: ItemCategory;
 }
+
+const OWNER_ROLE_EXT = 'https://widercircle.com/fhir/StructureDefinition/action-item-owner-role';
 
 // Category isn't a standard FHIR CarePlanActivity.detail field (category is on the
 // top-level CarePlan). Stash it in the code.coding.display slot so it round-trips
@@ -62,15 +88,22 @@ export const draftFromActivity = (activity: CarePlanActivity, idx: number): Plan
   const detail = activity.detail;
   const status = (detail?.status ?? 'not-started') as ActionStatus;
   const coding = detail?.code?.coding?.[0];
+  const performer = detail?.performer?.[0];
+  const performerExt = performer?.extension?.find((e) => e.url === OWNER_ROLE_EXT)?.valueString;
+  const knownRole = OWNER_ROLE_OPTIONS.find((r) => r === performerExt);
   return {
     id: coding?.code ?? `item-${idx}`,
     title: detail?.description ?? detail?.code?.text ?? `Action item ${idx + 1}`,
     description: detail?.code?.text ?? '',
+    ownerRole: knownRole ?? 'Other',
+    ownerName: performer?.display ?? undefined,
     dueDate: detail?.scheduledPeriod?.end,
     status: (['not-started', 'in-progress', 'completed', 'cancelled', 'on-hold'] as const).includes(status)
       ? status
       : 'not-started',
-    category: coding?.display,
+    category: (CATEGORY_OPTIONS as readonly string[]).includes(coding?.display ?? '')
+      ? (coding?.display as ItemCategory)
+      : undefined,
   };
 };
 
@@ -82,6 +115,12 @@ export const activityFromDraft = (item: PlanItemDraft): CarePlanActivity => ({
       text: item.description || undefined,
       coding: [{ code: item.id, display: item.category || undefined }],
     },
+    performer: [
+      {
+        display: item.ownerName?.trim() || item.ownerRole,
+        extension: [{ url: OWNER_ROLE_EXT, valueString: item.ownerRole }],
+      },
+    ],
     scheduledPeriod: item.dueDate ? { end: item.dueDate } : undefined,
   },
 });
@@ -93,17 +132,30 @@ export const isPlanEmpty = (narrative: string, items: PlanItemDraft[]): boolean 
 export function PlanOfCarePage(): JSX.Element {
   const medplum = useMedplum();
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get('patient') ?? '';
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [loading, setLoading] = useState(true);
 
   const [planId, setPlanId] = useState<string | undefined>();
   const [version, setVersion] = useState<number>(1);
   const [narrative, setNarrative] = useState('');
   const [items, setItems] = useState<PlanItemDraft[]>([]);
-  const [newItemTitle, setNewItemTitle] = useState('');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [savedAt, setSavedAt] = useState<number | undefined>();
   const [versionHistory, setVersionHistory] = useState<CarePlan[]>([]);
+  const [itemModalOpened, { open: openItemModal, close: closeItemModal }] = useDisclosure(false);
+  const [editingItemId, setEditingItemId] = useState<string | undefined>();
+  const [draft, setDraft] = useState<PlanItemDraft>(() => ({
+    id: '',
+    title: '',
+    description: '',
+    ownerRole: 'CHW',
+    ownerName: '',
+    dueDate: undefined,
+    status: 'not-started',
+    category: undefined,
+  }));
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -242,21 +294,47 @@ export function PlanOfCarePage(): JSX.Element {
     setSaveState('dirty');
   }, []);
 
-  const addItem = useCallback(() => {
-    const title = newItemTitle.trim();
-    if (!title) return;
-    setItems((prev) => [
-      ...prev,
-      {
-        id: `item-${Date.now()}`,
-        title,
-        description: '',
-        status: 'not-started',
-      },
-    ]);
-    setNewItemTitle('');
+  const openCreateItemModal = useCallback(() => {
+    setEditingItemId(undefined);
+    setDraft({
+      id: `item-${Date.now()}`,
+      title: '',
+      description: '',
+      ownerRole: 'CHW',
+      ownerName: '',
+      dueDate: undefined,
+      status: 'not-started',
+      category: undefined,
+    });
+    openItemModal();
+  }, [openItemModal]);
+
+  const openEditItemModal = useCallback(
+    (id: string) => {
+      const it = items.find((i) => i.id === id);
+      if (!it) return;
+      setEditingItemId(id);
+      setDraft({ ...it });
+      openItemModal();
+    },
+    [items, openItemModal]
+  );
+
+  const commitDraft = useCallback(() => {
+    if (!draft.title.trim()) {
+      showNotification({ color: 'red', message: 'Action item needs a title.' });
+      return;
+    }
+    setItems((prev) => {
+      if (editingItemId) {
+        return prev.map((i) => (i.id === editingItemId ? { ...draft, id: editingItemId } : i));
+      }
+      return [...prev, draft];
+    });
+    closeItemModal();
+    setEditingItemId(undefined);
     markDirty();
-  }, [newItemTitle, markDirty]);
+  }, [draft, editingItemId, closeItemModal, markDirty]);
 
   const removeItem = useCallback(
     (id: string) => {
@@ -359,78 +437,91 @@ export function PlanOfCarePage(): JSX.Element {
 
                 {items.length === 0 ? (
                   <Text c="dimmed" size="sm">
-                    No action items yet. Add the first one below.
+                    No action items yet. Click <b>Add action item</b> below.
                   </Text>
                 ) : (
                   <Stack gap="xs">
                     {items.map((item) => (
-                      <Group
+                      <Card
                         key={item.id}
-                        justify="space-between"
-                        p="xs"
-                        style={{
-                          borderBottom: '1px solid var(--mantine-color-gray-2)',
-                        }}
+                        withBorder
+                        radius="sm"
+                        padding="sm"
                       >
-                        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                          <Text size="sm" fw={500}>
-                            {item.title}
-                          </Text>
-                          {item.description && (
-                            <Text size="xs" c="dimmed">
-                              {item.description}
-                            </Text>
-                          )}
-                        </Stack>
-                        <Group gap="xs" wrap="nowrap">
-                          <Select
-                            value={item.status}
-                            onChange={(v) => updateItemStatus(item.id, (v as ActionStatus) ?? 'not-started')}
-                            data={(Object.keys(STATUS_LABELS) as ActionStatus[]).map((s) => ({
-                              value: s,
-                              label: STATUS_LABELS[s],
-                            }))}
-                            size="xs"
-                            w={140}
-                            aria-label={`Status for ${item.title}`}
-                          />
-                          <Badge color={STATUS_COLORS[item.status]} variant="light" size="sm">
-                            {STATUS_LABELS[item.status]}
-                          </Badge>
-                          <ActionIcon
-                            variant="subtle"
-                            color="red"
-                            onClick={() => removeItem(item.id)}
-                            aria-label={`Remove ${item.title}`}
-                          >
-                            <IconTrash size={14} />
-                          </ActionIcon>
+                        <Group justify="space-between" wrap="nowrap" align="flex-start">
+                          <Stack gap={4} style={{ minWidth: 0, flex: 1 }}>
+                            <Group gap={6} wrap="wrap">
+                              <Text size="sm" fw={600}>{item.title}</Text>
+                              <Badge color={STATUS_COLORS[item.status]} variant="light" size="sm">
+                                {STATUS_LABELS[item.status]}
+                              </Badge>
+                              {item.category && (
+                                <Badge variant="light" color="grape" size="sm" leftSection={<IconTag size={11} />}>
+                                  {item.category}
+                                </Badge>
+                              )}
+                            </Group>
+                            {item.description && (
+                              <Text size="xs" c="dimmed">{item.description}</Text>
+                            )}
+                            <Group gap={12} wrap="wrap">
+                              <Group gap={4}>
+                                <IconUser size={12} />
+                                <Text size="xs" c="dimmed">
+                                  {item.ownerName?.trim() ? `${item.ownerName} (${item.ownerRole})` : item.ownerRole}
+                                </Text>
+                              </Group>
+                              {item.dueDate && (
+                                <Group gap={4}>
+                                  <IconCalendar size={12} />
+                                  <Text size="xs" c="dimmed">Due {item.dueDate}</Text>
+                                </Group>
+                              )}
+                            </Group>
+                          </Stack>
+                          <Group gap={4}>
+                            <Select
+                              value={item.status}
+                              onChange={(v) => updateItemStatus(item.id, (v as ActionStatus) ?? 'not-started')}
+                              data={(Object.keys(STATUS_LABELS) as ActionStatus[]).map((s) => ({
+                                value: s,
+                                label: STATUS_LABELS[s],
+                              }))}
+                              size="xs"
+                              w={130}
+                              aria-label={`Status for ${item.title}`}
+                            />
+                            <ActionIcon
+                              variant="subtle"
+                              color="orange"
+                              onClick={() => openEditItemModal(item.id)}
+                              aria-label={`Edit ${item.title}`}
+                            >
+                              <IconPencil size={14} />
+                            </ActionIcon>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => removeItem(item.id)}
+                              aria-label={`Remove ${item.title}`}
+                            >
+                              <IconTrash size={14} />
+                            </ActionIcon>
+                          </Group>
                         </Group>
-                      </Group>
+                      </Card>
                     ))}
                   </Stack>
                 )}
 
-                <Group gap="xs">
-                  <TextInput
-                    placeholder="Add an action item…"
-                    value={newItemTitle}
-                    onChange={(e) => setNewItemTitle(e.currentTarget.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addItem();
-                      }
-                    }}
-                    style={{ flex: 1 }}
-                  />
+                <Group justify="flex-end">
                   <Button
                     leftSection={<IconPlus size={14} />}
-                    onClick={addItem}
-                    disabled={!newItemTitle.trim()}
+                    onClick={openCreateItemModal}
                     variant="light"
+                    color="orange"
                   >
-                    Add
+                    Add action item
                   </Button>
                 </Group>
               </Stack>
@@ -488,6 +579,91 @@ export function PlanOfCarePage(): JSX.Element {
           </>
         )}
       </Stack>
+
+      <Modal
+        opened={itemModalOpened}
+        onClose={() => {
+          closeItemModal();
+          setEditingItemId(undefined);
+        }}
+        title={editingItemId ? 'Edit action item' : 'Add action item'}
+        size="lg"
+        withinPortal
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Title"
+            placeholder="e.g. Connect with housing authority"
+            value={draft.title}
+            onChange={(e) => setDraft({ ...draft, title: e.currentTarget.value })}
+            required
+          />
+          <Textarea
+            label="Description (optional)"
+            placeholder="Detail what needs to happen and any context the owner needs."
+            value={draft.description}
+            onChange={(e) => setDraft({ ...draft, description: e.currentTarget.value })}
+            autosize
+            minRows={2}
+            maxRows={6}
+          />
+          <Group grow>
+            <Select
+              label="Owner role"
+              data={OWNER_ROLE_OPTIONS as unknown as string[]}
+              value={draft.ownerRole}
+              onChange={(v) => setDraft({ ...draft, ownerRole: (v as OwnerRole) ?? 'CHW' })}
+              allowDeselect={false}
+              required
+            />
+            <TextInput
+              label="Owner name (optional)"
+              placeholder="Specific staff or member, if known"
+              value={draft.ownerName ?? ''}
+              onChange={(e) => setDraft({ ...draft, ownerName: e.currentTarget.value })}
+            />
+          </Group>
+          <Group grow>
+            <TextInput
+              label="Due date (optional)"
+              type="date"
+              value={draft.dueDate ?? ''}
+              onChange={(e) => setDraft({ ...draft, dueDate: e.currentTarget.value || undefined })}
+            />
+            <Select
+              label="Category (optional)"
+              data={CATEGORY_OPTIONS as unknown as string[]}
+              value={draft.category ?? null}
+              onChange={(v) => setDraft({ ...draft, category: (v as ItemCategory) ?? undefined })}
+              clearable
+            />
+          </Group>
+          <Select
+            label="Status"
+            data={(Object.keys(STATUS_LABELS) as ActionStatus[]).map((s) => ({
+              value: s,
+              label: STATUS_LABELS[s],
+            }))}
+            value={draft.status}
+            onChange={(v) => setDraft({ ...draft, status: (v as ActionStatus) ?? 'not-started' })}
+            allowDeselect={false}
+          />
+          <Group justify="flex-end" mt="sm">
+            <Button
+              variant="subtle"
+              onClick={() => {
+                closeItemModal();
+                setEditingItemId(undefined);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button color="orange" onClick={commitDraft} disabled={!draft.title.trim()}>
+              {editingItemId ? 'Save changes' : 'Add to plan'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Document>
   );
 }

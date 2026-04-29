@@ -24,7 +24,7 @@ describe('PlanOfCarePage — pure helpers', () => {
     expect(isPlanEmpty('   ', [])).toBe(true);
     expect(isPlanEmpty('some narrative', [])).toBe(false);
     expect(
-      isPlanEmpty('', [{ id: 'x', title: 't', description: '', status: 'not-started' }])
+      isPlanEmpty('', [{ id: 'x', title: 't', description: '', status: 'not-started', ownerRole: 'CHW' }])
     ).toBe(false);
   });
 
@@ -34,8 +34,19 @@ describe('PlanOfCarePage — pure helpers', () => {
         detail: {
           status: 'in-progress',
           description: 'Schedule PCP follow-up',
-          code: { text: 'Call Monday AM', coding: [{ code: 'item-1', display: 'Medical' }] },
+          code: { text: 'Call Monday AM', coding: [{ code: 'item-1', display: 'Clinical' }] },
           scheduledPeriod: { end: '2026-05-01' },
+          performer: [
+            {
+              display: 'Dr. Lopez',
+              extension: [
+                {
+                  url: 'https://widercircle.com/fhir/StructureDefinition/action-item-owner-role',
+                  valueString: 'Care Provider',
+                },
+              ],
+            },
+          ],
         },
       },
       0
@@ -44,9 +55,11 @@ describe('PlanOfCarePage — pure helpers', () => {
       id: 'item-1',
       title: 'Schedule PCP follow-up',
       description: 'Call Monday AM',
+      ownerRole: 'Care Provider',
+      ownerName: 'Dr. Lopez',
       dueDate: '2026-05-01',
       status: 'in-progress',
-      category: 'Medical',
+      category: 'Clinical',
     });
   });
 
@@ -61,16 +74,22 @@ describe('PlanOfCarePage — pure helpers', () => {
       id: 'item-1',
       title: 'BP check',
       description: 'Measure twice',
+      ownerRole: 'CHW',
+      ownerName: 'Demo CHW',
       dueDate: '2026-05-01',
       status: 'in-progress',
-      category: 'Medical',
+      category: 'Clinical',
     });
     expect(activity.detail?.status).toBe('in-progress');
     expect(activity.detail?.description).toBe('BP check');
     expect(activity.detail?.code?.text).toBe('Measure twice');
     expect(activity.detail?.code?.coding?.[0]?.code).toBe('item-1');
-    expect(activity.detail?.code?.coding?.[0]?.display).toBe('Medical');
+    expect(activity.detail?.code?.coding?.[0]?.display).toBe('Clinical');
     expect(activity.detail?.scheduledPeriod?.end).toBe('2026-05-01');
+    expect(activity.detail?.performer?.[0]?.display).toBe('Demo CHW');
+    expect(
+      activity.detail?.performer?.[0]?.extension?.[0]?.valueString
+    ).toBe('CHW');
   });
 
   test('draftFromActivity coerces unknown statuses to not-started', () => {

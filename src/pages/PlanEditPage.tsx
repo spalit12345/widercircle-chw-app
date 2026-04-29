@@ -8,6 +8,7 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconLock, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { isPlanLocked, latestReviewState, type ReviewState } from './SubmitForReviewPage';
 
 type ItemStatus = 'not-started' | 'in-progress' | 'completed' | 'cancelled' | 'on-hold';
@@ -53,8 +54,10 @@ const itemFromActivity = (activity: CarePlanActivity, idx: number): EditableItem
 
 export function PlanEditPage(): JSX.Element {
   const medplum = useMedplum();
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get('patient') ?? '';
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [loading, setLoading] = useState(true);
   const [latestPlan, setLatestPlan] = useState<CarePlan | undefined>();
   const [originalItems, setOriginalItems] = useState<EditableItem[]>([]);
