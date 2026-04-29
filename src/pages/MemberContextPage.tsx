@@ -40,6 +40,7 @@ import type {
   Encounter,
   MedicationRequest,
   Patient,
+  RelatedPerson,
   Task,
 } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
@@ -52,6 +53,7 @@ import {
   IconAlertTriangle,
   IconClock,
   IconExternalLink,
+  IconHeartHandshake,
   IconHistory,
   IconHome,
   IconLock,
@@ -126,6 +128,76 @@ const FIELD_VISIT_DISPOSITIONS: Array<{ value: string; label: string }> = [
   { value: 'unable-to-contact', label: 'Unable to contact' },
 ];
 
+// CM-13 Relationships — fold Patient.contact[] + RelatedPerson[] into one
+// view so the CHW sees a unified list of caregivers / family / contacts. The
+// "primary" flag picks up either the HL7 "C" (emergency contact) role or our
+// internal flag extension.
+const PRIMARY_CONTACT_EXT = 'https://widercircle.com/fhir/StructureDefinition/primary-contact';
+
+export interface RelationshipRow {
+  key: string;
+  name: string;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  primary: boolean;
+  source: 'embedded' | 'related-person';
+}
+
+const formatNameFromHuman = (name: { given?: string[]; family?: string; text?: string } | undefined): string => {
+  if (!name) return 'Unnamed contact';
+  if (name.text) return name.text;
+  return [name.given?.join(' '), name.family].filter(Boolean).join(' ') || 'Unnamed contact';
+};
+
+const isPrimaryContact = (relationship: { coding?: { code?: string }[] }[] | undefined, extPrimary: boolean): boolean => {
+  if (extPrimary) return true;
+  return Boolean(
+    relationship?.some((r) => r.coding?.some((c) => c.code === 'C' || c.code === 'CP'))
+  );
+};
+
+export const buildRelationshipRows = (patient: Patient | undefined, relatedPersons: RelatedPerson[]): RelationshipRow[] => {
+  const rows: RelationshipRow[] = [];
+  patient?.contact?.forEach((c, idx) => {
+    const extPrimary = Boolean(
+      c.extension?.find((e) => e.url === PRIMARY_CONTACT_EXT && e.valueBoolean === true)
+    );
+    rows.push({
+      key: `embedded-${idx}`,
+      name: formatNameFromHuman(c.name),
+      relationship:
+        c.relationship?.[0]?.text ?? c.relationship?.[0]?.coding?.[0]?.display ?? null,
+      phone: c.telecom?.find((t) => t.system === 'phone')?.value ?? null,
+      email: c.telecom?.find((t) => t.system === 'email')?.value ?? null,
+      primary: isPrimaryContact(c.relationship, extPrimary),
+      source: 'embedded',
+    });
+  });
+  relatedPersons.forEach((rp) => {
+    if (rp.active === false) return;
+    const extPrimary = Boolean(
+      rp.extension?.find((e) => e.url === PRIMARY_CONTACT_EXT && e.valueBoolean === true)
+    );
+    rows.push({
+      key: `rp-${rp.id ?? Math.random().toString(36).slice(2)}`,
+      name: formatNameFromHuman(rp.name?.[0]),
+      relationship:
+        rp.relationship?.[0]?.text ?? rp.relationship?.[0]?.coding?.[0]?.display ?? null,
+      phone: rp.telecom?.find((t) => t.system === 'phone')?.value ?? null,
+      email: rp.telecom?.find((t) => t.system === 'email')?.value ?? null,
+      primary: isPrimaryContact(rp.relationship, extPrimary),
+      source: 'related-person',
+    });
+  });
+  // Primary contacts first, then by name.
+  rows.sort((a, b) => {
+    if (a.primary !== b.primary) return a.primary ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return rows;
+};
+
 interface LoadedData {
   patient: Patient | undefined;
   coverages: Coverage[];
@@ -138,6 +210,7 @@ interface LoadedData {
   cases: Task[];
   fieldVisits: Encounter[];
   ecmAttempts: Communication[];
+  relatedPersons: RelatedPerson[];
 }
 
 const EMPTY: LoadedData = {
@@ -152,6 +225,7 @@ const EMPTY: LoadedData = {
   cases: [],
   fieldVisits: [],
   ecmAttempts: [],
+  relatedPersons: [],
 };
 
 export function MemberContextPage(): JSX.Element {
@@ -257,6 +331,7 @@ export function MemberContextPage(): JSX.Element {
         cases,
         visits,
         ecmAttempts,
+        relatedPersons,
       ] = await Promise.all([
           medplum.readResource('Patient', patientId).catch(() => undefined),
           medplum.searchResources('Coverage', `${patientRef}&_count=10`).catch(() => []),
@@ -296,6 +371,12 @@ export function MemberContextPage(): JSX.Element {
               `${subject}&category=${ECM_CATEGORY_CODE}&_sort=-sent&_count=50`
             )
             .catch(() => [] as Communication[]),
+          medplum
+            .searchResources(
+              'RelatedPerson',
+              `${patientRef}&_count=20&_sort=-_lastUpdated`
+            )
+            .catch(() => [] as RelatedPerson[]),
         ]);
       setData({
         patient,
@@ -309,6 +390,7 @@ export function MemberContextPage(): JSX.Element {
         cases: (cases ?? []) as Task[],
         fieldVisits: (visits ?? []) as Encounter[],
         ecmAttempts: (ecmAttempts ?? []) as Communication[],
+        relatedPersons: (relatedPersons ?? []) as RelatedPerson[],
       });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -569,6 +651,11 @@ export function MemberContextPage(): JSX.Element {
     }
   }, [patientId, data.patient, caseSummary, caseType, casePriority, medplum, closeCaseModal, resetCaseForm, load]);
 
+  const relationshipRows = useMemo(
+    () => buildRelationshipRows(data.patient, data.relatedPersons),
+    [data.patient, data.relatedPersons]
+  );
+
   if (loading) {
     return (
       <Document>
@@ -801,6 +888,14 @@ export function MemberContextPage(): JSX.Element {
                 empty="No known allergies."
               />
             </SectionCard>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <RelationshipsCard
+              rows={relationshipRows}
+              patientId={patientId}
+              onEditExternal={() => navigate(`/Patient/${patientId}/edit`)}
+            />
           </Grid.Col>
 
           <Grid.Col span={{ base: 12, md: 6 }}>
@@ -1399,5 +1494,75 @@ function Row({ label, value }: { label: string; value: string }): JSX.Element {
       <Text size="xs" c="dimmed" tt="uppercase" fw={700}>{label}</Text>
       <Text size="sm" style={{ textAlign: 'right' }}>{value}</Text>
     </Group>
+  );
+}
+
+function RelationshipsCard({
+  rows,
+  patientId,
+  onEditExternal,
+}: {
+  rows: RelationshipRow[];
+  patientId: string | undefined;
+  onEditExternal: () => void;
+}): JSX.Element {
+  return (
+    <Card withBorder radius="md" padding="md" h="100%">
+      <Stack gap="xs">
+        <Group justify="space-between">
+          <Group gap={8}>
+            <IconHeartHandshake size={16} />
+            <Title order={6}>Relationships</Title>
+          </Group>
+          {rows.length > 0 && <Badge variant="light" color="gray">{rows.length}</Badge>}
+        </Group>
+        {rows.length === 0 ? (
+          <Stack gap={4}>
+            <Text size="sm" c="dimmed">
+              No caregivers, family, or contacts on file.
+            </Text>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              leftSection={<IconExternalLink size={12} />}
+              onClick={onEditExternal}
+              disabled={!patientId}
+            >
+              Edit on Patient form
+            </Button>
+          </Stack>
+        ) : (
+          <Stack gap={6}>
+            {rows.slice(0, 6).map((r) => (
+              <Stack key={r.key} gap={2}>
+                <Group gap={6} wrap="nowrap">
+                  <Text size="sm" fw={500}>{r.name}</Text>
+                  {r.primary && (
+                    <Badge color="orange" variant="light" size="sm">Primary</Badge>
+                  )}
+                  <Badge color="gray" variant="light" size="sm">
+                    {r.source === 'embedded' ? 'Patient.contact' : 'RelatedPerson'}
+                  </Badge>
+                </Group>
+                <Text size="xs" c="dimmed">
+                  {[r.relationship, r.phone, r.email].filter(Boolean).join(' · ') || '—'}
+                </Text>
+              </Stack>
+            ))}
+            <Group justify="flex-end" mt={4}>
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                leftSection={<IconExternalLink size={12} />}
+                onClick={onEditExternal}
+                disabled={!patientId}
+              >
+                Edit on Patient form
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Stack>
+    </Card>
   );
 }
