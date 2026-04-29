@@ -353,19 +353,28 @@ export function WorkflowBuilderPage(): JSX.Element {
       const log: string[] = [];
       const results: Array<{ stepId: string; outcome: 'completed' | 'skipped' | 'failed'; resourceRef?: string; reason?: string }> = [];
       for (const step of steps) {
-        // Trivial demo condition: only "patient.gender=male/female" or
-        // "patient.id=<id>" supported. Anything else is treated as
-        // unconditional. Real workflow engine has a richer matcher.
+        // CM-20 AC-3 demo branching keys. Real workflow engine should use a
+        // richer expression matcher; this lookup table covers the demo paths.
         let conditionPasses = true;
         if (step.conditionKey && step.conditionValue) {
           const patient = await medplum
             .readResource('Patient', runPatient)
             .catch(() => undefined as Patient | undefined);
+          const homeAddress =
+            patient?.address?.find((a) => a.use === 'home') ?? patient?.address?.[0];
           const lhs =
             step.conditionKey === 'patient.gender' ? patient?.gender :
             step.conditionKey === 'patient.id' ? patient?.id :
+            step.conditionKey === 'patient.zip' ? homeAddress?.postalCode :
+            step.conditionKey === 'patient.state' ? homeAddress?.state :
+            step.conditionKey === 'patient.city' ? homeAddress?.city :
+            step.conditionKey === 'patient.language' ?
+              patient?.communication?.[0]?.language?.coding?.[0]?.code ??
+              patient?.communication?.[0]?.language?.text :
+            step.conditionKey === 'patient.maritalStatus' ?
+              patient?.maritalStatus?.coding?.[0]?.code ?? patient?.maritalStatus?.text :
             undefined;
-          conditionPasses = (lhs ?? '').toLowerCase() === step.conditionValue.toLowerCase();
+          conditionPasses = (lhs ?? '').toString().toLowerCase() === step.conditionValue.toLowerCase();
         }
         if (!conditionPasses) {
           log.push(`⏭  ${step.title}: condition (${step.conditionKey}=${step.conditionValue}) not met — skipped`);

@@ -49,10 +49,12 @@ import {
   IconCalendar,
   IconChevronRight,
   IconClipboardCheck,
+  IconAlertTriangle,
   IconClock,
   IconExternalLink,
   IconHistory,
   IconHome,
+  IconLock,
   IconMapPin,
   IconNotes,
   IconPhone,
@@ -69,6 +71,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { MemberKeyInfoHeader } from '../components/MemberKeyInfoHeader';
 import { useRole } from '../auth/RoleContext';
 import { emitAudit } from '../utils/audit';
+import { CONSENT_CATEGORY_CODE, evaluateConsentStatus } from './ConsentCapturePage';
 import {
   ECM_BILLABLE_EXT,
   ECM_CAP_DEFAULT,
@@ -583,14 +586,58 @@ export function MemberContextPage(): JSX.Element {
     );
   }
 
-  const consentValid = data.consents.some((c) => c.status === 'active');
-  const ecmStatus = evaluateEcmStatus(data.ecmAttempts, data.patient);
+  // CD-05 FR-7 — surface a consent-gap badge near the patient name when the
+  // active telehealth-chi consent is missing or expiring within 30 days. The
+  // CaseloadPage already shows the equivalent pill on each row; this card is
+  // the second surface the spec calls out.
+  const telehealthConsents = data.consents.filter((c) =>
+    c.category?.some((cat) => cat.coding?.some((coding) => coding.code === CONSENT_CATEGORY_CODE))
+  );
+  const consentStatus = evaluateConsentStatus(telehealthConsents);
+  const consentValid = consentStatus.state === 'on-file';
+  const consentExpiringSoon =
+    consentStatus.state === 'on-file' &&
+    consentStatus.expiresOn !== undefined &&
+    Date.parse(consentStatus.expiresOn) - Date.now() < 30 * 24 * 3600 * 1000;
+  const ecmStatus = evaluateEcmStatus(data.ecmAttempts, data.patient, {
+    consents: data.consents,
+  });
   const ecmCapPct = Math.min(100, Math.round((ecmStatus.billable / ecmStatus.cap) * 100));
 
   return (
     <Document>
       <Stack gap="md">
         <MemberKeyInfoHeader patient={data.patient} coverages={data.coverages} consentValid={consentValid} />
+
+        {/* CD-05 FR-7 — visible consent gap warning so the CHW can't miss it
+            before launching a billable visit. */}
+        {!consentValid && (
+          <Alert color="red" variant="light" icon={<IconLock size={16} />}>
+            <Group justify="space-between" wrap="wrap">
+              <Text size="sm">
+                <b>Telehealth + CHI consent {consentStatus.state === 'expired' ? 'expired' : 'missing'}.</b>{' '}
+                Capture consent before launching a visit or recording any billable time.
+              </Text>
+              <Button
+                size="xs"
+                variant="light"
+                color="red"
+                leftSection={<IconSignature size={12} />}
+                onClick={() => navigate('/consent')}
+              >
+                Capture consent
+              </Button>
+            </Group>
+          </Alert>
+        )}
+        {consentExpiringSoon && (
+          <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Text size="sm">
+              <b>Consent expires {consentStatus.expiresOn ? formatDateTime(consentStatus.expiresOn) : ''}.</b>{' '}
+              Refresh attestation to avoid a billing gap.
+            </Text>
+          </Alert>
+        )}
 
         <Group justify="flex-end" gap="sm">
           <Button
@@ -660,7 +707,7 @@ export function MemberContextPage(): JSX.Element {
               variant="light"
               color="blue"
               leftSection={<IconClipboardCheck size={14} />}
-              onClick={() => navigate('/plan-review')}
+              onClick={() => navigate(`/plan-review?patient=${data.patient.id}`)}
             >
               Review plan
             </Button>
@@ -811,6 +858,11 @@ export function MemberContextPage(): JSX.Element {
                     </Text>
                   </Stack>
                   <Group gap="xs">
+                    {!ecmStatus.consentOnFile && (
+                      <Badge color="red" variant="filled" size="md">
+                        ECM consent missing
+                      </Badge>
+                    )}
                     {ecmStatus.capReached && (
                       <Badge color="red" variant="filled" size="md">
                         Cap reached · further attempts non-billable
@@ -826,7 +878,7 @@ export function MemberContextPage(): JSX.Element {
                         Window closed
                       </Badge>
                     )}
-                    {!ecmStatus.capReached && !ecmStatus.approachingCap && !ecmStatus.windowClosed && (
+                    {ecmStatus.consentOnFile && !ecmStatus.capReached && !ecmStatus.approachingCap && !ecmStatus.windowClosed && (
                       <Badge color="green" variant="light" size="md">
                         Within cap
                       </Badge>
@@ -843,6 +895,21 @@ export function MemberContextPage(): JSX.Element {
                     <Text size="xs">
                       Per CM-22 §AC, further outreach is still permitted but flagged
                       non-billable. The ECM cap and window are admin-configurable per program (DA-08).
+                    </Text>
+                  </Alert>
+                )}
+                {!ecmStatus.consentOnFile && (
+                  <Alert color="red" variant="light" icon={<IconLock size={14} />}>
+                    <Text size="xs">
+                      No active ECM enrollment consent on file. Per CM-22 AC-3 every attempt is
+                      tracked for compliance but flagged <b>non-billable</b> until consent is
+                      captured. {ecmStatus.preConsentAttempts > 0 && (
+                        <>
+                          <b>{ecmStatus.preConsentAttempts}</b> attempt
+                          {ecmStatus.preConsentAttempts === 1 ? '' : 's'} this window are
+                          pre-consent.
+                        </>
+                      )}
                     </Text>
                   </Alert>
                 )}

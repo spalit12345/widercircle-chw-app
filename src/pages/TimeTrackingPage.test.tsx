@@ -98,8 +98,8 @@ describe('config constants', () => {
     }
   });
 
-  test('IDLE_AUTO_STOP_MS is 30 minutes (AC-3)', () => {
-    expect(IDLE_AUTO_STOP_MS).toBe(30 * 60 * 1000);
+  test('IDLE_AUTO_STOP_MS is 4 hours (demo build) — production default 30 min per AC-3', () => {
+    expect(IDLE_AUTO_STOP_MS).toBe(4 * 60 * 60 * 1000);
   });
 });
 

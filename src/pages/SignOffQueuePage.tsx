@@ -34,7 +34,7 @@ export function SignOffQueuePage(): JSX.Element {
     try {
       const tasks = await medplum.searchResources(
         'Task',
-        `code=${REVIEW_TASK_CODE}&status=requested&_sort=authored&_count=50`
+        `code=${REVIEW_TASK_CODE}&status=requested&_sort=authored-on&_count=50`
       );
       setQueue(tasks);
     } catch (err) {

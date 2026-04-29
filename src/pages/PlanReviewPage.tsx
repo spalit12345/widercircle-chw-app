@@ -28,6 +28,7 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconGitCompare, IconHeartHandshake, IconLock } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { SignaturePad } from '../components/SignaturePad';
 import { emitAudit } from '../utils/audit';
 
@@ -114,8 +115,10 @@ export function PlanReviewPage(): JSX.Element {
     ? `${profile.name?.[0]?.given?.[0] ?? ''} ${profile.name?.[0]?.family ?? ''}`.trim() || 'Clinician'
     : 'Clinician';
 
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get('patient') ?? '';
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [plan, setPlan] = useState<CarePlan | undefined>();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [acks, setAcks] = useState<Communication[]>([]);
@@ -131,14 +134,37 @@ export function PlanReviewPage(): JSX.Element {
 
   const loadPatients = useCallback(async () => {
     try {
-      const results = await medplum.searchResources('Patient', '_count=50&_sort=-_lastUpdated');
+      // CD-19 — order patients by who has an active CarePlan first so the demo
+      // doesn't open onto an empty plan dropdown. Patients without plans still
+      // appear (so unrelated members are reachable), they just sort below.
+      const [plansResp, patientsResp] = await Promise.all([
+        medplum.searchResources('CarePlan', 'status=active&_count=200&_sort=-_lastUpdated'),
+        medplum.searchResources('Patient', '_count=50&_sort=-_lastUpdated'),
+      ]);
+      const planPatientIds = new Set<string>();
+      const planOrder: string[] = [];
+      plansResp.forEach((cp: CarePlan) => {
+        const ref = cp.subject?.reference?.split('/').pop();
+        if (ref && !planPatientIds.has(ref)) {
+          planPatientIds.add(ref);
+          planOrder.push(ref);
+        }
+      });
+      const byId = new Map<string, Patient>();
+      patientsResp.forEach((p: Patient) => {
+        if (p.id) byId.set(p.id, p);
+      });
+      const ordered: Patient[] = [
+        ...planOrder.map((id) => byId.get(id)).filter((p): p is Patient => Boolean(p)),
+        ...patientsResp.filter((p: Patient) => p.id && !planPatientIds.has(p.id)),
+      ];
       setPatients(
-        results.map((p: Patient) => ({
+        ordered.map((p) => ({
           value: p.id ?? '',
-          label:
-            `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient',
+          label: `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient',
         }))
       );
+      setSelectedPatient((prev) => prev || ordered[0]?.id || '');
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {

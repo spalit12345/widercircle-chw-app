@@ -215,7 +215,9 @@ export function CaseloadPage(): JSX.Element {
         );
         const consentStatus = evaluateConsentStatus(filtered);
         const ccmMinutes = sumMinutes(minutesByPatient.get(id) ?? []);
-        const ecmStatus = evaluateEcmStatus(ecmByPatient.get(id) ?? [], p);
+        const ecmStatus = evaluateEcmStatus(ecmByPatient.get(id) ?? [], p, {
+          consents: patientConsents,
+        });
         return {
           patient: p,
           fullName: formatPatientName(p),
