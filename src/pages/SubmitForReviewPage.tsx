@@ -8,6 +8,7 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconCheck, IconLock, IconLockOpen, IconSend } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 export type ReviewState = 'draft' | 'submitted' | 'approved' | 'revision-requested';
 
@@ -36,8 +37,10 @@ export const latestReviewState = (submissions: Task[]): ReviewState => {
 export function SubmitForReviewPage(): JSX.Element {
   const medplum = useMedplum();
   const profile = medplum.getProfile();
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get('patient') ?? '';
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [plan, setPlan] = useState<CarePlan | undefined>();
   const [submissions, setSubmissions] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
