@@ -10,6 +10,7 @@ import {
   IconCalendar,
   IconCash,
   IconChevronDown,
+  IconClipboardList,
   IconHome2,
   IconMessageCircle2,
   IconSearch,
@@ -42,6 +43,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Home', href: '/today', Icon: IconHome2, match: (p) => p === '/' || p.startsWith('/today') || p.startsWith('/getstarted') },
   { id: 'queue', label: 'My queue', href: '/my-tasks', Icon: IconBriefcase2, match: (p) => p.startsWith('/my-tasks') || p.startsWith('/Task') || p.startsWith('/signoff-queue') || p.startsWith('/review-submission') },
+  { id: 'plans', label: 'Care plans', href: '/my-plans', Icon: IconClipboardList, match: (p) => p.startsWith('/my-plans') || p.startsWith('/plan-of-care') || p.startsWith('/plan-edit') || p.startsWith('/plan-review') || p.startsWith('/CarePlan'), requiresPermission: 'careplan.review' },
   { id: 'members', label: 'Members', href: '/my-caseload', Icon: IconUsers, match: (p) => p.startsWith('/my-caseload') || p.startsWith('/Patient') || p.startsWith('/members') },
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'messaging', label: 'Messaging', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Spaces') || p.startsWith('/Fax') },
