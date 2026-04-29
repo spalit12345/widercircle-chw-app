@@ -128,10 +128,13 @@ const FIELD_VISIT_DISPOSITIONS: Array<{ value: string; label: string }> = [
   { value: 'unable-to-contact', label: 'Unable to contact' },
 ];
 
-// CM-13 Relationships — fold Patient.contact[] + RelatedPerson[] into one
-// view so the CHW sees a unified list of caregivers / family / contacts. The
-// "primary" flag picks up either the HL7 "C" (emergency contact) role or our
-// internal flag extension.
+// CM-13 Relationships — read RelatedPerson resources only. Caregivers /
+// family / contacts that need to do anything in the system (sign consents,
+// receive SMS, attend visits, hold portal access) live as first-class
+// RelatedPerson records. Patient.contact[] entries are intentionally NOT
+// surfaced here — promote them to RelatedPerson before they show up in this
+// card so every row downstream can be referenced from Communication, Consent,
+// Encounter, etc.
 const PRIMARY_CONTACT_EXT = 'https://widercircle.com/fhir/StructureDefinition/primary-contact';
 
 export interface RelationshipRow {
@@ -141,7 +144,6 @@ export interface RelationshipRow {
   phone: string | null;
   email: string | null;
   primary: boolean;
-  source: 'embedded' | 'related-person';
 }
 
 const formatNameFromHuman = (name: { given?: string[]; family?: string; text?: string } | undefined): string => {
@@ -157,23 +159,8 @@ const isPrimaryContact = (relationship: { coding?: { code?: string }[] }[] | und
   );
 };
 
-export const buildRelationshipRows = (patient: Patient | undefined, relatedPersons: RelatedPerson[]): RelationshipRow[] => {
+export const buildRelationshipRows = (relatedPersons: RelatedPerson[]): RelationshipRow[] => {
   const rows: RelationshipRow[] = [];
-  patient?.contact?.forEach((c, idx) => {
-    const extPrimary = Boolean(
-      c.extension?.find((e) => e.url === PRIMARY_CONTACT_EXT && e.valueBoolean === true)
-    );
-    rows.push({
-      key: `embedded-${idx}`,
-      name: formatNameFromHuman(c.name),
-      relationship:
-        c.relationship?.[0]?.text ?? c.relationship?.[0]?.coding?.[0]?.display ?? null,
-      phone: c.telecom?.find((t) => t.system === 'phone')?.value ?? null,
-      email: c.telecom?.find((t) => t.system === 'email')?.value ?? null,
-      primary: isPrimaryContact(c.relationship, extPrimary),
-      source: 'embedded',
-    });
-  });
   relatedPersons.forEach((rp) => {
     if (rp.active === false) return;
     const extPrimary = Boolean(
@@ -187,7 +174,6 @@ export const buildRelationshipRows = (patient: Patient | undefined, relatedPerso
       phone: rp.telecom?.find((t) => t.system === 'phone')?.value ?? null,
       email: rp.telecom?.find((t) => t.system === 'email')?.value ?? null,
       primary: isPrimaryContact(rp.relationship, extPrimary),
-      source: 'related-person',
     });
   });
   // Primary contacts first, then by name.
@@ -652,8 +638,8 @@ export function MemberContextPage(): JSX.Element {
   }, [patientId, data.patient, caseSummary, caseType, casePriority, medplum, closeCaseModal, resetCaseForm, load]);
 
   const relationshipRows = useMemo(
-    () => buildRelationshipRows(data.patient, data.relatedPersons),
-    [data.patient, data.relatedPersons]
+    () => buildRelationshipRows(data.relatedPersons),
+    [data.relatedPersons]
   );
 
   if (loading) {
@@ -894,7 +880,7 @@ export function MemberContextPage(): JSX.Element {
             <RelationshipsCard
               rows={relationshipRows}
               patientId={patientId}
-              onEditExternal={() => navigate(`/Patient/${patientId}/edit`)}
+              onEditExternal={() => navigate(`/RelatedPerson?patient=Patient/${patientId}`)}
             />
           </Grid.Col>
 
@@ -1528,7 +1514,7 @@ function RelationshipsCard({
               onClick={onEditExternal}
               disabled={!patientId}
             >
-              Edit on Patient form
+              Manage RelatedPerson records
             </Button>
           </Stack>
         ) : (
@@ -1540,9 +1526,6 @@ function RelationshipsCard({
                   {r.primary && (
                     <Badge color="orange" variant="light" size="sm">Primary</Badge>
                   )}
-                  <Badge color="gray" variant="light" size="sm">
-                    {r.source === 'embedded' ? 'Patient.contact' : 'RelatedPerson'}
-                  </Badge>
                 </Group>
                 <Text size="xs" c="dimmed">
                   {[r.relationship, r.phone, r.email].filter(Boolean).join(' · ') || '—'}
