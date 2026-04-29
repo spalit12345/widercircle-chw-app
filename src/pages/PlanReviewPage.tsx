@@ -164,7 +164,8 @@ export function PlanReviewPage(): JSX.Element {
           label: `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient',
         }))
       );
-      setSelectedPatient((prev) => prev || ordered[0]?.id || '');
+      // Don't auto-select: leave the dropdown empty unless a ?patient= deep
+      // link supplied one in initial state. CHW must pick the member.
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {
