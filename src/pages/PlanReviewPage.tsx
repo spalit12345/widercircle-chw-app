@@ -311,20 +311,71 @@ export function PlanReviewPage(): JSX.Element {
   return (
     <Document>
       <Stack gap="md">
-        <Group justify="space-between" align="flex-end">
-          <Stack gap={2}>
-            <Title order={2}>Plan review</Title>
-            <Text c="dimmed" size="sm">
-              CHW view: assigned-to-me items first, then the rest. Read-only — status changes and full edits
-              flow through CD-14.
-            </Text>
-          </Stack>
+        {/* v2 status ribbon — eyebrow + member identity + draft / version chip */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '12px 0',
+            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              color: 'var(--wc-warning-700, #C97800)',
+              textTransform: 'uppercase',
+            }}
+          >
+            Plan of Care · Review &amp; sign
+          </span>
           {plan && (
-            <Badge variant="light" ff="monospace">
-              {plan.meta?.lastUpdated ? formatDateTime(plan.meta.lastUpdated) : ''}
-            </Badge>
+            <>
+              <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
+              <span
+                style={{
+                  fontFamily: 'Montserrat, system-ui, sans-serif',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: 'var(--wc-base-800, #012B49)',
+                }}
+              >
+                {plan.subject?.display ?? 'Member'}
+              </span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '3px 10px',
+                  borderRadius: 14,
+                  background: 'var(--wc-primary-100, #FDEEE6)',
+                  color: 'var(--wc-primary-700, #B84E1A)',
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-primary-500, #EA6424)' }} />
+                Plan v{versionHistory.length} · {alreadyAcked ? 'SIGNED' : 'AWAITING SIGN'}
+              </span>
+              {plan.meta?.lastUpdated && (
+                <span style={{ fontFamily: 'Azeret Mono, monospace', fontSize: 11, color: 'var(--wc-base-600, #506D85)' }}>
+                  updated {formatDateTime(plan.meta.lastUpdated)}
+                </span>
+              )}
+            </>
           )}
-        </Group>
+          <div style={{ flex: 1 }} />
+          <Text c="dimmed" size="xs" style={{ maxWidth: 320, textAlign: 'right' }}>
+            CHW review · status changes flow through CD-14. Care Provider sign-off required to finalize.
+          </Text>
+        </div>
 
         <Select
           label="Member"
@@ -643,29 +694,74 @@ export function PlanReviewPage(): JSX.Element {
 }
 
 function ReviewItemRow({ item }: { item: ReviewItem }): JSX.Element {
+  // v2 row pattern: vertical stripe + monospace ref label, item title in
+  // Inter Bold 13.5, owner + status as a meta line below.
   return (
-    <Group
-      justify="space-between"
-      p="xs"
-      style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
-      wrap="nowrap"
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        background: '#fff',
+        border: '1px solid var(--wc-base-200, #E2E6E9)',
+        borderRadius: 12,
+        padding: 14,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
     >
-      <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-        <Text size="sm" fw={500}>
+      <span
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 8,
+          bottom: 8,
+          width: 3,
+          borderRadius: 2,
+          background:
+            item.status === 'completed' ? 'var(--wc-success-500, #2F8A89)'
+            : item.status === 'cancelled' || item.status === 'on-hold' ? 'var(--wc-base-400, #A7B6C2)'
+            : item.status === 'in-progress' ? 'var(--wc-primary-500, #EA6424)'
+            : 'var(--wc-base-300, #D6DCDF)',
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0, paddingLeft: 10 }}>
+        <div
+          style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: 'var(--wc-base-800, #012B49)',
+          }}
+        >
           {item.title}
-        </Text>
+        </div>
         {item.description && (
-          <Text size="xs" c="dimmed">
+          <div
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11.5,
+              color: 'var(--wc-base-500, #8499AA)',
+              marginTop: 3,
+            }}
+          >
             {item.description}
-          </Text>
+          </div>
         )}
-        <Text size="xs" c="dimmed">
-          Owner: {item.ownerLabel}
-        </Text>
-      </Stack>
+        <div
+          style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 11.5,
+            color: 'var(--wc-base-500, #8499AA)',
+            marginTop: 3,
+          }}
+        >
+          Owner: <span style={{ color: 'var(--wc-base-600, #506D85)' }}>{item.ownerLabel}</span>
+        </div>
+      </div>
       <Badge color={STATUS_COLORS[item.status]} variant="light" size="sm">
         {STATUS_LABELS[item.status]}
       </Badge>
-    </Group>
+    </div>
   );
 }
