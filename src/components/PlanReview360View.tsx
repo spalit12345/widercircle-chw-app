@@ -22,7 +22,6 @@ import {
   IconPrinter,
   IconSend,
   IconSignature,
-  IconUsers,
   IconHierarchy,
 } from '@tabler/icons-react';
 import { type JSX, type ReactNode, useState } from 'react';
@@ -48,7 +47,7 @@ const COLOR_WARNING_TINT = '#FFF7E6';
 const COLOR_WARNING_BORDER = '#F1C56A';
 const COLOR_WARNING_FG = '#8B6508';
 
-type SectionKey = 'problems' | 'goals' | 'interventions' | 'team' | 'consents';
+type SectionKey = 'problems' | 'consents';
 
 export interface ReviewItemForView {
   id: string;
@@ -112,9 +111,6 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
 
   const sections: { k: SectionKey; label: string; icon: ReactNode; n: number; sub: string }[] = [
     { k: 'problems', label: 'Action items', icon: <IconClipboardList size={16} />, n: props.items.length, sub: 'status flows through CD-14' },
-    { k: 'goals', label: 'Goals & outcomes', icon: <IconHierarchy size={16} />, n: 0, sub: 'pending CD-08 §goals' },
-    { k: 'interventions', label: 'Interventions', icon: <IconHierarchy size={16} />, n: 0, sub: 'auto from triggers' },
-    { k: 'team', label: 'Care team', icon: <IconUsers size={16} />, n: 0, sub: '— external' },
     { k: 'consents', label: 'Consents & signatures', icon: <IconSignature size={16} />, n: props.acks.length, sub: props.alreadyAcked ? 'CHW signed' : 'awaiting CHW' },
   ];
 
