@@ -22,6 +22,7 @@ import { formatDate, formatDateTime, normalizeErrorString } from '@medplum/core'
 import type { Appointment, Patient, Task } from '@medplum/fhirtypes';
 import { useMedplum } from '@medplum/react';
 import { Today360View } from '../components/Today360View';
+import { TodayCaseloadRail } from '../components/TodayCaseloadRail';
 import {
   IconCheck,
   IconClipboardCheck,
@@ -146,6 +147,7 @@ export function TodayPage(): JSX.Element {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
+  const [patientResources, setPatientResources] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
 
@@ -178,6 +180,7 @@ export function TodayPage(): JSX.Element {
       ]);
       setAppointments(apptResults);
       setTasks(taskResults);
+      setPatientResources(patientResults);
       setPatients(
         patientResults.map((p: Patient) => ({
           value: p.id ?? '',
@@ -400,22 +403,33 @@ export function TodayPage(): JSX.Element {
 
   return (
     <>
-      <Today360View
-        greetingName={greetingName}
-        todayLabel={today}
-        scheduleToday={scheduleToday}
-        dueToday={dueToday}
-        overdue={overdue}
-        appointmentTime={appointmentTime}
-        patientLabelFor={patientLabelFor}
-        onNewTask={openModal}
-        onOpenAppointment={(_apptId, patientId) => {
-          if (patientId) navigate(`/members/${patientId}`);
-        }}
-        onOpenTask={(taskId) => taskId && navigate(`/Task/${taskId}`)}
-        onOpenPatient={(patientId) => patientId && navigate(`/Patient/${patientId}`)}
-        onNavigate={navigate}
-      />
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#fff' }}>
+        <TodayCaseloadRail
+          patients={patientResources}
+          appointments={appointments}
+          tasks={tasks}
+          todayISO={today}
+          appointmentTime={appointmentTime}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Today360View
+            greetingName={greetingName}
+            todayLabel={today}
+            scheduleToday={scheduleToday}
+            dueToday={dueToday}
+            overdue={overdue}
+            appointmentTime={appointmentTime}
+            patientLabelFor={patientLabelFor}
+            onNewTask={openModal}
+            onOpenAppointment={(_apptId, patientId) => {
+              if (patientId) navigate(`/members/${patientId}`);
+            }}
+            onOpenTask={(taskId) => taskId && navigate(`/Task/${taskId}`)}
+            onOpenPatient={(patientId) => patientId && navigate(`/Patient/${patientId}`)}
+            onNavigate={navigate}
+          />
+        </div>
+      </div>
 
       <Modal opened={modalOpened} onClose={closeModal} title="New task" size="md">
         <Stack gap="md">
