@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useRole } from '../auth/RoleContext';
 import { SignaturePad } from '../components/SignaturePad';
+import { PlanReview360View } from '../components/PlanReview360View';
 
 const SIGNATURE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-signature';
 
@@ -309,251 +310,22 @@ export function PlanReviewPage(): JSX.Element {
   }
 
   return (
-    <Document>
-      <Stack gap="md">
-        {/* v2 status ribbon — eyebrow + member identity + draft / version chip */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            padding: '12px 0',
-            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span
-            style={{
-              fontFamily: 'Inter, system-ui, sans-serif',
-              fontWeight: 700,
-              fontSize: 12,
-              letterSpacing: '0.05em',
-              color: 'var(--wc-warning-700, #C97800)',
-              textTransform: 'uppercase',
-            }}
-          >
-            Plan of Care · Review &amp; sign
-          </span>
-          {plan && (
-            <>
-              <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
-              <span
-                style={{
-                  fontFamily: 'Montserrat, system-ui, sans-serif',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: 'var(--wc-base-800, #012B49)',
-                }}
-              >
-                {plan.subject?.display ?? 'Member'}
-              </span>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '3px 10px',
-                  borderRadius: 14,
-                  background: 'var(--wc-primary-100, #FDEEE6)',
-                  color: 'var(--wc-primary-700, #B84E1A)',
-                  fontFamily: 'Inter',
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-primary-500, #EA6424)' }} />
-                Plan v{versionHistory.length} · {alreadyAcked ? 'SIGNED' : 'AWAITING SIGN'}
-              </span>
-              {plan.meta?.lastUpdated && (
-                <span style={{ fontFamily: 'Azeret Mono, monospace', fontSize: 11, color: 'var(--wc-base-600, #506D85)' }}>
-                  updated {formatDateTime(plan.meta.lastUpdated)}
-                </span>
-              )}
-            </>
-          )}
-          <div style={{ flex: 1 }} />
-          <Text c="dimmed" size="xs" style={{ maxWidth: 320, textAlign: 'right' }}>
-            CHW review · status changes flow through CD-14. Care Provider sign-off required to finalize.
-          </Text>
-        </div>
-
-        <Select
-          label="Member"
-          placeholder="Pick a member"
-          data={patients}
-          value={selectedPatient}
-          onChange={(v) => setSelectedPatient(v ?? '')}
-          searchable
-          required
-        />
-
-        {selectedPatient && !plan && (
-          <Alert color="yellow" variant="light" icon={<IconLock size={16} />} title="No plan on file">
-            <Text size="sm">This member has no Plan of Care yet. Provider authors it via /plan-of-care (CD-08).</Text>
-          </Alert>
-        )}
-
-        {plan && (
-          <>
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="xs">
-                <Group justify="space-between" wrap="wrap">
-                  <Title order={4}>Care Plan for {plan.subject?.display ?? 'member'}</Title>
-                  <Group gap="xs">
-                    {versionHistory.length > 1 && (
-                      <Button
-                        size="xs"
-                        variant="light"
-                        leftSection={<IconGitCompare size={12} />}
-                        onClick={openDiff}
-                      >
-                        Show changes vs v{versionHistory.length - 1}
-                      </Button>
-                    )}
-                    <Badge color={plan.status === 'active' ? 'green' : 'gray'} variant="light">
-                      {plan.status}
-                    </Badge>
-                  </Group>
-                </Group>
-                {plan.description && <Text size="sm">{plan.description}</Text>}
-                <Text size="xs" c="dimmed">
-                  Authored {plan.author?.display ? `by ${plan.author.display}` : ''}{' '}
-                  {plan.created ? `· ${formatDateTime(plan.created)}` : ''}
-                </Text>
-              </Stack>
-            </Card>
-
-            <Card
-              withBorder
-              radius="md"
-              padding="md"
-              style={{ borderColor: 'var(--mantine-color-orange-3)', background: 'var(--mantine-color-orange-0)' }}
-            >
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={5}>Assigned to you</Title>
-                  <Badge color="orange" variant="filled" size="sm">
-                    {mine.length}
-                  </Badge>
-                </Group>
-                {mine.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    Nothing is directly assigned to you on this plan.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">
-                    {mine.map((item) => (
-                      <ReviewItemRow key={item.id} item={item} />
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={5}>All other items</Title>
-                  <Badge variant="light">{others.length}</Badge>
-                </Group>
-                {others.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No other items on this plan.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">
-                    {others.map((item) => (
-                      <ReviewItemRow key={item.id} item={item} />
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            <Divider />
-
-            {alreadyAcked ? (
-              <Group justify="space-between" wrap="wrap">
-                <Text size="xs" c="dimmed" style={{ maxWidth: 400 }}>
-                  You already signed this plan. Signatures are immutable.
-                </Text>
-                <Badge color="green" variant="light" leftSection={<IconCheck size={12} />} size="lg">
-                  You signed this plan
-                </Badge>
-              </Group>
-            ) : !canSignAsProvider ? (
-              <Alert color="gray" variant="light" icon={<IconLock size={16} />} title="Care Provider sign-off required">
-                <Text size="sm">
-                  Only a Care Provider (MD) can sign this plan. Switch to the Care Provider role to capture the signature, or surface this plan to a Provider via /signoff-queue.
-                </Text>
-              </Alert>
-            ) : (
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Title order={5}>Care Provider signature</Title>
-                  <Text size="xs" c="dimmed">
-                    The signing Care Provider draws their signature below. The PNG is stored on the Communication resource for audit. Signatures are immutable.
-                  </Text>
-                  <SignaturePad onChange={setSignatureDataUrl} label="Care Provider signature" />
-                  <Group justify="flex-end">
-                    <Button
-                      color="blue"
-                      leftSection={<IconCheck size={16} />}
-                      onClick={ackThisPlan}
-                      loading={acking}
-                      disabled={acking || !plan || !signatureDataUrl}
-                    >
-                      Sign as Care Provider
-                    </Button>
-                  </Group>
-                </Stack>
-              </Card>
-            )}
-
-            {acks.length > 0 && (
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Group justify="space-between">
-                    <Title order={5}>Care Provider signatures</Title>
-                    <Badge variant="light">{acks.length}</Badge>
-                  </Group>
-                  <Stack gap="xs">
-                    {acks.slice(0, 10).map((a) => {
-                      const sig = a.payload?.find((p) => p.contentAttachment?.contentType === 'image/png');
-                      const data = sig?.contentAttachment?.data;
-                      return (
-                        <Group key={a.id} justify="space-between" p="xs" wrap="nowrap">
-                          <Group gap="sm" wrap="nowrap">
-                            <Badge color="green" variant="light" size="sm">
-                              {a.status ?? 'completed'}
-                            </Badge>
-                            <Text size="sm">{a.sender?.display ?? a.sender?.reference ?? '—'}</Text>
-                            {data && (
-                              <img
-                                src={`data:image/png;base64,${data}`}
-                                alt="Signature"
-                                style={{
-                                  height: 32,
-                                  border: '1px solid var(--mantine-color-gray-3)',
-                                  borderRadius: 4,
-                                  background: '#fff',
-                                }}
-                              />
-                            )}
-                          </Group>
-                          <Text size="xs" c="dimmed" ff="monospace">
-                            {a.sent ? formatDateTime(a.sent) : ''}
-                          </Text>
-                        </Group>
-                      );
-                    })}
-                  </Stack>
-                </Stack>
-              </Card>
-            )}
-          </>
-        )}
-      </Stack>
+    <>
+      <PlanReview360View
+        plan={plan}
+        patient={undefined}
+        items={items}
+        versionHistory={versionHistory}
+        acks={acks}
+        reviewState="draft"
+        alreadyAcked={alreadyAcked}
+        canSignAsProvider={canSignAsProvider}
+        acking={acking}
+        signatureDataUrl={signatureDataUrl}
+        setSignatureDataUrl={setSignatureDataUrl}
+        ackThisPlan={ackThisPlan}
+        onCompareV3={openDiff}
+      />
 
       {/* CD-08 AC-3 — Plan version diff. Compares latest vs previous version
           and lists items added, removed, and status-changed. */}
@@ -689,7 +461,7 @@ export function PlanReviewPage(): JSX.Element {
           )}
         </Stack>
       </Modal>
-    </Document>
+    </>
   );
 }
 
