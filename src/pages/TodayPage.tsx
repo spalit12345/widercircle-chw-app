@@ -24,6 +24,7 @@ import { useMedplum } from '@medplum/react';
 import { Today360View } from '../components/Today360View';
 import { TodayCaseloadRail } from '../components/TodayCaseloadRail';
 import {
+  IconBell,
   IconCheck,
   IconClipboardCheck,
   IconClock,
@@ -401,18 +402,171 @@ export function TodayPage(): JSX.Element {
     );
   }
 
+  const visitsToday = scheduleToday.length;
+  const taskCount = dueToday.length + overdue.length;
+  const overdueNow = overdue.length;
+  const dateLine = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+
   return (
     <>
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#fff' }}>
-        <TodayCaseloadRail
-          patients={patientResources}
-          appointments={appointments}
-          tasks={tasks}
-          todayISO={today}
-          appointmentTime={appointmentTime}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Today360View
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#fff' }}>
+        {/* v2 top header — full width above the rails. Status indicator on
+            left, member-style identity (greeting + date), chip stats, then a
+            single notification bell on the right. New-task and Add-member
+            buttons explicitly NOT included per the user's last instruction —
+            New-task moves to the Tasks section header below. */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '14px 28px',
+            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
+            background: '#fff',
+            flexWrap: 'wrap',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                background: 'var(--wc-success-500, #2F8A89)',
+              }}
+            />
+            <span
+              style={{
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontWeight: 700,
+                fontSize: 12,
+                letterSpacing: '0.06em',
+                color: 'var(--wc-success-700, #015F5D)',
+                textTransform: 'uppercase',
+              }}
+            >
+              {greeting()}, {practitionerName}
+            </span>
+          </div>
+          <span
+            style={{
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 15,
+              color: 'var(--wc-base-800, #012B49)',
+              marginLeft: 14,
+            }}
+          >
+            {dateLine}
+          </span>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 14,
+              background: 'var(--wc-primary-100, #FDEEE6)',
+              color: 'var(--wc-primary-700, #B84E1A)',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-primary-500, #EA6424)' }} />
+            {visitsToday} visit{visitsToday === 1 ? '' : 's'} · {taskCount} task{taskCount === 1 ? '' : 's'}
+          </span>
+          {overdueNow > 0 && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 14,
+                background: 'var(--wc-error-100, #FCE9E1)',
+                color: 'var(--wc-error-700, #A73304)',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-error-600, #D1190D)' }} />
+              {overdueNow} overdue
+            </span>
+          )}
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 14,
+              background: 'var(--wc-info-100, #EAF7FA)',
+              color: 'var(--wc-info-700, #015F5D)',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+            title="Threshold cohort widget arrives with the CD-17 dashboard"
+          >
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-info-500, #5AA8B8)' }} />
+            CCM threshold cohort · pending CD-17
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            aria-label="Notifications"
+            title="Notifications"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              border: '1px solid var(--wc-base-200, #E2E6E9)',
+              background: '#fff',
+              color: 'var(--wc-base-700, #34556D)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+            }}
+          >
+            <IconBell size={16} />
+            {overdueNow > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 10,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: 'var(--wc-primary-500, #EA6424)',
+                  border: '2px solid #fff',
+                }}
+              />
+            )}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <TodayCaseloadRail
+            patients={patientResources}
+            appointments={appointments}
+            tasks={tasks}
+            todayISO={today}
+            appointmentTime={appointmentTime}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Today360View
             greetingName={greetingName}
             todayLabel={today}
             scheduleToday={scheduleToday}
@@ -429,6 +583,7 @@ export function TodayPage(): JSX.Element {
             onNavigate={navigate}
           />
         </div>
+      </div>
       </div>
 
       <Modal opened={modalOpened} onClose={closeModal} title="New task" size="md">

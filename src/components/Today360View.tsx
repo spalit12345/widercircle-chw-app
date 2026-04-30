@@ -148,38 +148,6 @@ export function Today360View(props: Today360Props): JSX.Element {
         color: COLOR_INK,
       }}
     >
-      {/* Greeting + chip stats — stand-in for the v2 TopRibbon */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <div
-          style={{
-            fontFamily: 'Inter',
-            fontWeight: 700,
-            fontSize: 12,
-            letterSpacing: '0.06em',
-            color: COLOR_TEAL_FG,
-            textTransform: 'uppercase',
-          }}
-        >
-          Good day, {props.greetingName}
-        </div>
-        <span style={{ width: 1, height: 18, background: COLOR_BORDER }} />
-        <span
-          style={{
-            fontFamily: 'Montserrat, system-ui, sans-serif',
-            fontWeight: 700,
-            fontSize: 14,
-            color: COLOR_INK,
-          }}
-        >
-          {todayDateLabel()}
-        </span>
-        <Chip tone="brand">{visitsCount} visit{visitsCount === 1 ? '' : 's'} · {dueCount + overdueCount} task{dueCount + overdueCount === 1 ? '' : 's'}</Chip>
-        {overdueCount > 0 && <Chip tone="warn" dot>{overdueCount} overdue</Chip>}
-        <div style={{ flex: 1 }} />
-        <RibbonButton onClick={props.onNewTask} icon={<IconPlus size={14} />}>New task</RibbonButton>
-        <RibbonButton onClick={() => props.onNavigate('/Patient?_count=20&_fields=name,email,gender&_sort=-_lastUpdated')} icon={<IconUserPlus size={14} />}>Add member</RibbonButton>
-      </div>
-
       {/* Hero KPI strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         <KPIStat
@@ -239,12 +207,35 @@ export function Today360View(props: Today360Props): JSX.Element {
         title="Tasks"
         subtitle="Auto-created from triggers (SDoH thresholds, sequence rules) plus your manual tasks"
         right={
-          <FilterChipPair
-            chips={[
-              { label: 'Overdue', count: overdueCount, active: true, tone: 'danger', icon: <IconAlertOctagon size={12} /> },
-              { label: 'Due today', count: dueCount },
-            ]}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={props.onNewTask}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 30,
+                padding: '0 12px',
+                borderRadius: 8,
+                border: `1px solid ${COLOR_BORDER}`,
+                background: '#fff',
+                color: COLOR_INK_2,
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <IconPlus size={12} /> New task
+            </button>
+            <FilterChipPair
+              chips={[
+                { label: 'Overdue', count: overdueCount, active: true, tone: 'danger', icon: <IconAlertOctagon size={12} /> },
+                { label: 'Due today', count: dueCount },
+              ]}
+            />
+          </div>
         }
       >
         {allTasks.length === 0 ? (
