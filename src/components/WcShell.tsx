@@ -8,7 +8,7 @@
 // "no chrome" intent without losing the demo's role-flip moment.
 
 import { Indicator, Menu, UnstyledButton } from '@mantine/core';
-import { useMedplumProfile } from '@medplum/react';
+import { useMedplum, useMedplumProfile } from '@medplum/react';
 import {
   IconActivity,
   IconAlertHexagon,
@@ -19,6 +19,7 @@ import {
   IconChartHistogram,
   IconClipboardList,
   IconHome2,
+  IconLogout,
   IconSearch,
 } from '@tabler/icons-react';
 import type { JSX, ReactNode } from 'react';
@@ -209,6 +210,13 @@ function RailButton({
 function ProfileMenu(): JSX.Element {
   const { role, setRole } = useRole();
   const profile = useMedplumProfile();
+  const medplum = useMedplum();
+  const navigate = useNavigate();
+
+  const handleSignOut = (): void => {
+    medplum.signOut().catch(() => undefined);
+    navigate('/signin');
+  };
   const initials = useMemo(() => {
     const name = profile?.name?.[0];
     if (!name) return 'WC';
@@ -263,6 +271,10 @@ function ProfileMenu(): JSX.Element {
         <Menu.Divider />
         <Menu.Label>Active role</Menu.Label>
         <Menu.Item disabled>{ROLE_LABELS[role]}</Menu.Item>
+        <Menu.Divider />
+        <Menu.Item color="red" leftSection={<IconLogout size={14} />} onClick={handleSignOut}>
+          Sign out
+        </Menu.Item>
       </Menu.Dropdown>
     </Menu>
   );
