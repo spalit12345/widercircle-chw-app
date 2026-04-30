@@ -19,9 +19,7 @@ import {
   IconChartHistogram,
   IconClipboardList,
   IconHome2,
-  IconMessageCircle2,
   IconSearch,
-  IconUsers,
 } from '@tabler/icons-react';
 import type { JSX, ReactNode } from 'react';
 import { useEffect, useMemo } from 'react';
@@ -59,9 +57,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'queue', label: 'Caseload', href: '/my-tasks', Icon: IconBriefcase2, match: (p) => p.startsWith('/my-tasks') || p.startsWith('/Task') || p.startsWith('/signoff-queue') || p.startsWith('/review-submission') },
   { id: 'plans', label: 'Care plans', href: '/my-plans', Icon: IconClipboardList, match: (p) => p.startsWith('/my-plans') || p.startsWith('/plan-of-care') || p.startsWith('/plan-edit') || p.startsWith('/plan-review') || p.startsWith('/CarePlan'), requiresPermission: 'careplan.review' },
-  { id: 'circle', label: 'Circle', href: '/Communication', Icon: IconUsers, match: (p) => p.startsWith('/Spaces') },
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
-  { id: 'messaging', label: 'Messages', href: '/Communication', Icon: IconMessageCircle2, match: (p) => p.startsWith('/Communication') || p.startsWith('/Fax') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing'), requiresPermission: 'billing.view' },
   { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking'), requiresPermission: 'referrals.manage' },
   { id: 'reports', label: 'Reports', href: '/admin/audit-log', Icon: IconChartHistogram, match: (p) => p.startsWith('/admin/audit-log'), requiresPermission: 'admin.roles' },

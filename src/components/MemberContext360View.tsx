@@ -40,6 +40,14 @@ import {
   IconVideo,
 } from '@tabler/icons-react';
 import { useState, type JSX, type ReactNode } from 'react';
+import {
+  ECM_BILLABLE_EXT,
+  ECM_CHANNEL_EXT,
+  ECM_CHANNELS,
+  ECM_OUTCOME_EXT,
+  ECM_OUTCOMES,
+  type EcmStatus,
+} from '../utils/ecm';
 
 const COLOR_INK = 'var(--wc-base-800, #012B49)';
 const COLOR_INK_2 = 'var(--wc-base-700, #34556D)';
@@ -71,6 +79,11 @@ export interface MemberContext360Props {
   fieldVisits: Encounter[];
   consentValid: boolean;
   riskTier: string | null;
+  // CM-22 — ECM tracking surface. Optional so this component still renders
+  // for non-ECM contexts; when present, the right rail shows the cap counter,
+  // window remaining, consent status, and recent attempts with billable badges.
+  ecmStatus?: EcmStatus;
+  ecmAttempts?: Communication[];
   onPhoneAction: () => void;
   onMessageAction: () => void;
   onCalendarAction: () => void;
@@ -540,7 +553,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
         )}
       </main>
 
-      {/* RIGHT — SDoH flags + Upcoming events */}
+      {/* RIGHT — ECM tracking + SDoH flags + Upcoming events */}
       <aside
         style={{
           width: 280,
@@ -551,6 +564,12 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
           paddingTop: 48,
         }}
       >
+        {props.ecmStatus && (
+          <section>
+            <RailHeading>ECM tracking</RailHeading>
+            <EcmTrackingPanel status={props.ecmStatus} attempts={props.ecmAttempts ?? []} />
+          </section>
+        )}
         <section>
           <RailHeading>SDoH flags</RailHeading>
           <SDoHFlagsList flags={sdohFlagsFromCases(props.cases)} />
@@ -1038,6 +1057,177 @@ function UpcomingEventsList({ events }: { events: UpcomingEvent[] }): JSX.Elemen
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function EcmTrackingPanel({
+  status,
+  attempts,
+}: {
+  status: EcmStatus;
+  attempts: Communication[];
+}): JSX.Element {
+  const capPct = status.cap > 0 ? Math.min(100, Math.round((status.billable / status.cap) * 100)) : 0;
+  const windowDays = Math.max(
+    1,
+    Math.round((Date.parse(status.windowEnd) - Date.parse(status.windowStart)) / (24 * 3600 * 1000))
+  );
+
+  // CM-22 §UI — color states: green by default; orange ≥80% cap; red on cap
+  // reached, window expired, or consent missing (since none of those leave
+  // the next attempt billable).
+  let toneLabel: string;
+  let toneBg: string;
+  let toneFg: string;
+  let toneBar: string;
+  if (!status.consentOnFile) {
+    toneLabel = 'Consent missing';
+    toneBg = '#FCE4E2';
+    toneFg = '#B81100';
+    toneBar = COLOR_DANGER;
+  } else if (status.windowClosed) {
+    toneLabel = 'Window closed';
+    toneBg = '#FCE4E2';
+    toneFg = '#B81100';
+    toneBar = COLOR_DANGER;
+  } else if (status.capReached) {
+    toneLabel = 'Cap reached';
+    toneBg = '#FCE4E2';
+    toneFg = '#B81100';
+    toneBar = COLOR_DANGER;
+  } else if (capPct >= 80) {
+    toneLabel = 'Approaching cap';
+    toneBg = 'var(--wc-warning-100, #FEF5E5)';
+    toneFg = '#925200';
+    toneBar = 'var(--wc-warning-500, #F99D1C)';
+  } else {
+    toneLabel = 'On track';
+    toneBg = COLOR_TEAL_BG;
+    toneFg = COLOR_TEAL_FG;
+    toneBar = COLOR_TEAL_DOT;
+  }
+
+  const recent = attempts.slice(0, 3);
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: `1px solid ${COLOR_BORDER}`,
+        borderRadius: 12,
+        padding: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div>
+          <span style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 700, color: COLOR_INK }}>
+            {status.billable}
+          </span>
+          <span style={{ fontFamily: 'Inter', fontSize: 13, color: COLOR_FG_HELP, marginLeft: 4 }}>
+            of {status.cap} billable
+          </span>
+        </div>
+        <span
+          style={{
+            padding: '2px 10px',
+            borderRadius: 10,
+            background: toneBg,
+            color: toneFg,
+            fontFamily: 'Inter',
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {toneLabel}
+        </span>
+      </div>
+
+      <div
+        style={{
+          height: 6,
+          background: COLOR_SURFACE_SUBTLE,
+          borderRadius: 3,
+          overflow: 'hidden',
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ height: '100%', width: `${capPct}%`, background: toneBar, transition: 'width 200ms' }} />
+      </div>
+
+      <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_MUTE, lineHeight: '17px' }}>
+        {status.windowClosed
+          ? `Window closed ${new Date(status.windowEnd).toLocaleDateString()}`
+          : `${status.daysRemaining} days remaining of ${windowDays}-day window`}
+      </div>
+      {(status.nonBillable > 0 || status.preConsentAttempts > 0) && (
+        <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP, marginTop: 4 }}>
+          {status.nonBillable > 0 && `${status.nonBillable} non-billable`}
+          {status.nonBillable > 0 && status.preConsentAttempts > 0 && ' · '}
+          {status.preConsentAttempts > 0 && `${status.preConsentAttempts} pre-consent`}
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            paddingTop: 12,
+            marginTop: 12,
+            borderTop: `1px solid ${COLOR_BORDER}`,
+          }}
+        >
+          <Eyebrow>Recent attempts</Eyebrow>
+          {recent.map((c) => {
+            const channelCode = c.extension?.find((e) => e.url === ECM_CHANNEL_EXT)?.valueString;
+            const outcomeCode = c.extension?.find((e) => e.url === ECM_OUTCOME_EXT)?.valueString;
+            const billable = c.extension?.find((e) => e.url === ECM_BILLABLE_EXT)?.valueBoolean ?? false;
+            const channelLabel = ECM_CHANNELS.find((ch) => ch.value === channelCode)?.label ?? channelCode ?? '—';
+            const outcomeLabel = ECM_OUTCOMES.find((o) => o.value === outcomeCode)?.label ?? outcomeCode ?? '—';
+            return (
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: COLOR_INK,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {outcomeLabel}
+                  </div>
+                  <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP }}>
+                    {channelLabel}
+                    {c.sent ? ` · ${new Date(c.sent).toLocaleDateString()}` : ''}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    flex: 'none',
+                    padding: '2px 8px',
+                    borderRadius: 8,
+                    background: billable ? COLOR_TEAL_BG : COLOR_SURFACE_SUBTLE,
+                    color: billable ? COLOR_TEAL_FG : COLOR_FG_MUTE,
+                    fontFamily: 'Inter',
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                >
+                  {billable ? 'Billable' : 'Non-billable'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

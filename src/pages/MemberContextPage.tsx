@@ -744,6 +744,8 @@ export function MemberContextPage(): JSX.Element {
         fieldVisits={data.fieldVisits}
         consentValid={consentValid}
         riskTier={riskTier}
+        ecmStatus={ecmStatus}
+        ecmAttempts={data.ecmAttempts}
         onPhoneAction={openEcmModal}
         onMessageAction={() => navigate('/Communication')}
         onCalendarAction={() => navigate('/my-schedule')}
