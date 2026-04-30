@@ -40,6 +40,7 @@ import type {
   Encounter,
   MedicationRequest,
   Patient,
+  QuestionnaireResponse,
   RelatedPerson,
   Task,
 } from '@medplum/fhirtypes';
@@ -197,6 +198,7 @@ interface LoadedData {
   fieldVisits: Encounter[];
   ecmAttempts: Communication[];
   relatedPersons: RelatedPerson[];
+  assessments: QuestionnaireResponse[];
 }
 
 const EMPTY: LoadedData = {
@@ -212,7 +214,12 @@ const EMPTY: LoadedData = {
   fieldVisits: [],
   ecmAttempts: [],
   relatedPersons: [],
+  assessments: [],
 };
+
+// CD-19 — extension URL written by SDoHAssessmentPage for each auto-triggered
+// case. We surface the count on the Assessments card.
+const TRIGGERED_CASE_EXT_URL = 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case';
 
 export function MemberContextPage(): JSX.Element {
   const medplum = useMedplum();
@@ -318,6 +325,7 @@ export function MemberContextPage(): JSX.Element {
         visits,
         ecmAttempts,
         relatedPersons,
+        assessments,
       ] = await Promise.all([
           medplum.readResource('Patient', patientId).catch(() => undefined),
           medplum.searchResources('Coverage', `${patientRef}&_count=10`).catch(() => []),
@@ -363,6 +371,12 @@ export function MemberContextPage(): JSX.Element {
               `${patientRef}&_count=20&_sort=-_lastUpdated`
             )
             .catch(() => [] as RelatedPerson[]),
+          medplum
+            .searchResources(
+              'QuestionnaireResponse',
+              `${subject}&_sort=-authored&_count=10`
+            )
+            .catch(() => [] as QuestionnaireResponse[]),
         ]);
       setData({
         patient,
@@ -377,6 +391,7 @@ export function MemberContextPage(): JSX.Element {
         fieldVisits: (visits ?? []) as Encounter[],
         ecmAttempts: (ecmAttempts ?? []) as Communication[],
         relatedPersons: (relatedPersons ?? []) as RelatedPerson[],
+        assessments: (assessments ?? []) as QuestionnaireResponse[],
       });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
