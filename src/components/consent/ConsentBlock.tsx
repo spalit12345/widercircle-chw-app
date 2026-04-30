@@ -8,10 +8,8 @@ import { useMedplum } from '@medplum/react';
 import { IconAlertTriangle, IconCheck, IconLock, IconSignature } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import {
-  CONSENT_CATEGORY_CODE,
-  CONSENT_EXPIRATION_MONTHS,
-  CONSENT_SCRIPT_TEXT,
-  CONSENT_SCRIPT_VERSION,
+  TELEHEALTH_CHI_CONSENT_CONFIG,
+  type ConsentTypeConfig,
   consentMethod,
   evaluateConsentStatus,
   utf8ToBase64,
@@ -25,6 +23,11 @@ export interface ConsentBlockProps {
   /** Optional label for the patient — only used in attestation metadata. */
   patientLabel?: string;
   /**
+   * Which consent type this block captures. Defaults to telehealth + CHI for
+   * backwards-compat with existing call sites (visit workspace, member chart).
+   */
+  config?: ConsentTypeConfig;
+  /**
    * Called once a new Consent record has been written and re-fetched.
    * Parents typically use this to flip a "blocked" → "ready" state.
    */
@@ -32,7 +35,8 @@ export interface ConsentBlockProps {
   /**
    * When true, the small "Visit start: blocked / unblocked" footer alert
    * is hidden — useful when the parent surface (e.g. VisitWorkspacePage)
-   * already shows phase state in its own header.
+   * already shows phase state in its own header. Also hidden automatically
+   * for non-telehealth consent types (the visit-start framing doesn't apply).
    */
   hideVisitStartFooter?: boolean;
 }
@@ -40,6 +44,7 @@ export interface ConsentBlockProps {
 export function ConsentBlock({
   patientId,
   patientLabel,
+  config = TELEHEALTH_CHI_CONSENT_CONFIG,
   onCaptured,
   hideVisitStartFooter,
 }: ConsentBlockProps): JSX.Element | null {
@@ -74,7 +79,7 @@ export function ConsentBlock({
         setConsents(
           results.filter((c) =>
             c.category?.some((cat) =>
-              cat.coding?.some((coding) => coding.code === CONSENT_CATEGORY_CODE)
+              cat.coding?.some((coding) => coding.code === config.categoryCode)
             )
           )
         );
@@ -84,7 +89,7 @@ export function ConsentBlock({
         setLoading(false);
       }
     },
-    [medplum]
+    [medplum, config.categoryCode]
   );
 
   useEffect(() => {
@@ -120,8 +125,8 @@ export function ConsentBlock({
             coding: [
               {
                 system: 'https://widercircle.com/fhir/CodeSystem/consent-category',
-                code: CONSENT_CATEGORY_CODE,
-                display: 'Telehealth + CHI',
+                code: config.categoryCode,
+                display: config.shortLabel,
               },
             ],
           },
@@ -131,8 +136,8 @@ export function ConsentBlock({
           coding: [
             {
               system: 'https://widercircle.com/fhir/CodeSystem/consent-policy',
-              code: CONSENT_CATEGORY_CODE,
-              display: 'Telehealth + CHI attestation policy (v1)',
+              code: config.categoryCode,
+              display: config.policyDisplay,
             },
           ],
         },
@@ -144,9 +149,9 @@ export function ConsentBlock({
           method === 'verbal'
             ? {
                 contentType: 'text/plain',
-                title: `Verbal attestation — ${CONSENT_SCRIPT_VERSION}`,
+                title: `Verbal attestation — ${config.scriptVersion}`,
                 data: utf8ToBase64(
-                  `Script version: ${CONSENT_SCRIPT_VERSION}\nAttested by: ${practitionerLabel}\nTimestamp: ${signedAt}\nScript:\n${CONSENT_SCRIPT_TEXT}`
+                  `Script version: ${config.scriptVersion}\nAttested by: ${practitionerLabel}\nTimestamp: ${signedAt}\nScript:\n${config.scriptText}`
                 ),
               }
             : undefined,
@@ -154,7 +159,7 @@ export function ConsentBlock({
           { url: 'https://widercircle.com/fhir/StructureDefinition/consent-method', valueString: method },
           {
             url: 'https://widercircle.com/fhir/StructureDefinition/consent-script-version',
-            valueString: CONSENT_SCRIPT_VERSION,
+            valueString: config.scriptVersion,
           },
         ],
       };
@@ -167,8 +172,8 @@ export function ConsentBlock({
         consentRef: saved.id ? { reference: `Consent/${saved.id}` } : undefined,
         meta: {
           method,
-          scriptVersion: CONSENT_SCRIPT_VERSION,
-          category: CONSENT_CATEGORY_CODE,
+          scriptVersion: config.scriptVersion,
+          category: config.categoryCode,
         },
       });
       showNotification({
@@ -187,6 +192,7 @@ export function ConsentBlock({
   }, [
     patientId,
     patientLabel,
+    config,
     method,
     scriptRead,
     esigDate,
@@ -209,7 +215,7 @@ export function ConsentBlock({
         <Group justify="space-between" align="center">
           <Group gap="xs">
             <IconSignature size={18} />
-            <Text fw={600}>Telehealth + CHI consent</Text>
+            <Text fw={600}>{config.blockTitle}</Text>
           </Group>
           {loading ? (
             <Badge variant="light">Loading…</Badge>
@@ -237,7 +243,7 @@ export function ConsentBlock({
             </Text>
             <Text size="xs" c="dimmed" mt={4}>
               Expires {status.expiresOn ? formatDate(status.expiresOn) : ''} · script version{' '}
-              <span style={{ fontFamily: 'monospace' }}>{CONSENT_SCRIPT_VERSION}</span>
+              <span style={{ fontFamily: 'monospace' }}>{config.scriptVersion}</span>
             </Text>
           </Alert>
         )}
@@ -253,10 +259,7 @@ export function ConsentBlock({
 
         {status.state === 'missing' && (
           <Alert color="red" variant="light" icon={<IconLock size={18} />} title="Consent needed">
-            <Text size="sm">
-              No telehealth/CHI consent on file for this member. Capture verbal consent in the visit, or record an
-              existing portal e-signature.
-            </Text>
+            <Text size="sm">{config.missingBody}</Text>
           </Alert>
         )}
 
@@ -279,9 +282,9 @@ export function ConsentBlock({
                 <Stack gap="xs">
                   <Text size="sm" fw={600}>
                     Verbal attestation script ·{' '}
-                    <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{CONSENT_SCRIPT_VERSION}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{config.scriptVersion}</span>
                   </Text>
-                  <Text size="sm">{CONSENT_SCRIPT_TEXT}</Text>
+                  <Text size="sm">{config.scriptText}</Text>
                   <Switch
                     label="I read this script verbatim and the member consented verbally"
                     checked={scriptRead}
@@ -341,7 +344,7 @@ export function ConsentBlock({
           </Stack>
         )}
 
-        {!hideVisitStartFooter && (
+        {!hideVisitStartFooter && config.visitFooterOk && config.visitFooterBlocked && (
           <Alert
             color={canStartVisit ? 'green' : 'red'}
             variant="light"
@@ -349,9 +352,7 @@ export function ConsentBlock({
             title={canStartVisit ? 'Visit start: unblocked' : 'Visit start: blocked'}
           >
             <Text size="xs">
-              {canStartVisit
-                ? 'Clinician can launch the telehealth visit from the workspace.'
-                : 'Visit launch will refuse until a valid consent is captured.'}
+              {canStartVisit ? config.visitFooterOk : config.visitFooterBlocked}
             </Text>
           </Alert>
         )}

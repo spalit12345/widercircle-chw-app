@@ -14,6 +14,67 @@ export const CONSENT_SCRIPT_TEXT = `I'm going to confirm your consent for a tele
 export const CONSENT_CATEGORY_CODE = 'telehealth-chi';
 export const CONSENT_EXPIRATION_MONTHS = 12;
 
+// CM-22 — ECM enrollment consent (Enhanced Care Management). Distinct
+// category from telehealth-chi; gates billability on the ECM tracking panel.
+export const ECM_CONSENT_SCRIPT_VERSION = 'ecm-enrollment-v1';
+export const ECM_CONSENT_SCRIPT_TEXT = `I'd like to confirm your enrollment in Enhanced Care Management (ECM) under Medi-Cal. ECM is a no-cost benefit where a community health worker may contact you by phone, text, email, or in person to help connect you to care, social services, and follow up on your goals. We may make several outreach attempts over the next two months. You can decline or revoke at any time without affecting your other Medi-Cal benefits. Do you consent to ECM enrollment?`;
+export const ECM_CONSENT_CATEGORY_CODE = 'ecm-enrollment';
+export const ECM_CONSENT_EXPIRATION_MONTHS = 12;
+
+/**
+ * A consent "type" the ConsentBlock can capture. Each WC consent (telehealth,
+ * ECM, future programs) plugs in the same component with different copy,
+ * category coding, and expiration.
+ */
+export interface ConsentTypeConfig {
+  /** Code stored in Consent.category[].coding[].code (also used as the policy code). */
+  categoryCode: string;
+  /** Heading text on the block: "Telehealth + CHI consent", "ECM enrollment consent". */
+  blockTitle: string;
+  /** Short label rendered inside the category coding's `display` field. */
+  shortLabel: string;
+  /** Versioned script identifier; bumped whenever the script text changes. */
+  scriptVersion: string;
+  /** Verbal-attestation script the CHW reads to the member. */
+  scriptText: string;
+  /** Display text for the policy code on the Consent record. */
+  policyDisplay: string;
+  /** How long the captured consent stays valid. */
+  expirationMonths: number;
+  /** Body copy for the "consent missing" alert. */
+  missingBody: string;
+  /** Body copy for the visit-start footer when consent is on file. */
+  visitFooterOk?: string;
+  /** Body copy for the visit-start footer when consent is not on file. */
+  visitFooterBlocked?: string;
+}
+
+export const TELEHEALTH_CHI_CONSENT_CONFIG: ConsentTypeConfig = {
+  categoryCode: CONSENT_CATEGORY_CODE,
+  blockTitle: 'Telehealth + CHI consent',
+  shortLabel: 'Telehealth + CHI',
+  scriptVersion: CONSENT_SCRIPT_VERSION,
+  scriptText: CONSENT_SCRIPT_TEXT,
+  policyDisplay: 'Telehealth + CHI attestation policy (v1)',
+  expirationMonths: CONSENT_EXPIRATION_MONTHS,
+  missingBody:
+    'No telehealth/CHI consent on file for this member. Capture verbal consent in the visit, or record an existing portal e-signature.',
+  visitFooterOk: 'Clinician can launch the telehealth visit from the workspace.',
+  visitFooterBlocked: 'Visit launch will refuse until a valid consent is captured.',
+};
+
+export const ECM_ENROLLMENT_CONSENT_CONFIG: ConsentTypeConfig = {
+  categoryCode: ECM_CONSENT_CATEGORY_CODE,
+  blockTitle: 'ECM enrollment consent',
+  shortLabel: 'ECM enrollment',
+  scriptVersion: ECM_CONSENT_SCRIPT_VERSION,
+  scriptText: ECM_CONSENT_SCRIPT_TEXT,
+  policyDisplay: 'ECM enrollment attestation policy (v1)',
+  expirationMonths: ECM_CONSENT_EXPIRATION_MONTHS,
+  missingBody:
+    'No ECM enrollment consent on file. Outreach attempts are still tracked for compliance, but flagged non-billable until consent is captured.',
+};
+
 export interface ConsentStatus {
   state: 'on-file' | 'expired' | 'missing';
   latest?: Consent;
@@ -92,11 +153,10 @@ export function ConsentCapturePage(): JSX.Element {
           'Consent',
           `patient=Patient/${patientId}&_sort=-_lastUpdated&_count=20`
         );
+        const known = new Set([CONSENT_CATEGORY_CODE, ECM_CONSENT_CATEGORY_CODE]);
         setConsents(
           results.filter((c) =>
-            c.category?.some((cat) =>
-              cat.coding?.some((coding) => coding.code === CONSENT_CATEGORY_CODE)
-            )
+            c.category?.some((cat) => cat.coding?.some((coding) => coding.code && known.has(coding.code)))
           )
         );
       } catch (err) {
@@ -114,13 +174,20 @@ export function ConsentCapturePage(): JSX.Element {
     loadHistory(selectedPatient).catch(console.error);
   }, [selectedPatient, loadHistory, historyKey]);
 
+  const consentTypeLabel = (c: Consent): string => {
+    const code = c.category?.flatMap((cat) => cat.coding ?? []).find((coding) => coding.code)?.code;
+    if (code === CONSENT_CATEGORY_CODE) return TELEHEALTH_CHI_CONSENT_CONFIG.shortLabel;
+    if (code === ECM_CONSENT_CATEGORY_CODE) return ECM_ENROLLMENT_CONSENT_CONFIG.shortLabel;
+    return code ?? 'Consent';
+  };
+
   return (
     <Document>
       <Stack gap="lg">
         <Stack gap={2}>
-          <Title order={2}>Telehealth + CHI consent</Title>
+          <Title order={2}>Member consents</Title>
           <Text c="dimmed" size="sm">
-            Capture or verify consent before launching a telehealth visit. Default validity{' '}
+            Capture or verify consent for telehealth visits and ECM enrollment. Default validity{' '}
             {CONSENT_EXPIRATION_MONTHS} months from signing.
           </Text>
         </Stack>
@@ -142,6 +209,14 @@ export function ConsentCapturePage(): JSX.Element {
         <ConsentBlock
           patientId={selectedPatient || undefined}
           patientLabel={selectedPatientLabel}
+          config={TELEHEALTH_CHI_CONSENT_CONFIG}
+          onCaptured={() => setHistoryKey((k) => k + 1)}
+        />
+
+        <ConsentBlock
+          patientId={selectedPatient || undefined}
+          patientLabel={selectedPatientLabel}
+          config={ECM_ENROLLMENT_CONSENT_CONFIG}
           onCaptured={() => setHistoryKey((k) => k + 1)}
         />
 
@@ -162,6 +237,9 @@ export function ConsentCapturePage(): JSX.Element {
                         size="sm"
                       >
                         {c.status}
+                      </Badge>
+                      <Badge variant="outline" size="sm">
+                        {consentTypeLabel(c)}
                       </Badge>
                       <Text size="sm" ff="monospace">
                         {consentMethod(c)}
