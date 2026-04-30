@@ -14,14 +14,11 @@
 //     records). Real-mode runs additionally write Task / Communication /
 //     Encounter resources.
 //
-// Demo scope (out of scope flagged at the top of CM-20):
-//   - No real event-bus trigger ingestion. Manual "Run on member" button.
-//   - No background SLA timer. Config is captured but escalation does not
-//     fire automatically; spec mandates it only after the event bus lands.
-//   - No anti-loop static analysis at publish. Demo only allows simple
-//     create_task / create_case actions which can't recurse.
-//   - Versioning is simple — Publish increments PlanDefinition.version and
-//     archives any previous active definition with the same `name`.
+// Out of scope for this iteration: real event-bus trigger ingestion (manual
+// "Run on member" only), background SLA timers / escalation rules, survey
+// embedding, multi-assignee handoffs. Versioning is simple — Publish
+// increments PlanDefinition.version and archives any previous active
+// definition with the same `name`.
 
 import {
   ActionIcon,
@@ -46,7 +43,6 @@ import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type {
-  Communication,
   Patient,
   PlanDefinition,
   PlanDefinitionAction,
@@ -76,7 +72,7 @@ const STEP_CONFIG_EXT = 'https://widercircle.com/fhir/StructureDefinition/wf-ste
 const TRIGGER_CONFIG_EXT = 'https://widercircle.com/fhir/StructureDefinition/wf-trigger-config';
 const WF_TAG_SYSTEM = 'https://widercircle.com/fhir/CodeSystem/workflow';
 
-type ActionType = 'create_task' | 'create_case' | 'send_notification';
+type ActionType = 'create_task' | 'create_case';
 type TriggerType = 'manual' | 'event:case-created' | 'scheduled:daily';
 
 interface StepConfig {
@@ -87,7 +83,6 @@ interface StepConfig {
   // Optional condition expressed as "key=value" against the patient or run context.
   conditionKey?: string;
   conditionValue?: string;
-  slaMinutes?: number;
 }
 
 interface TriggerConfig {
@@ -98,7 +93,6 @@ interface TriggerConfig {
 const ACTION_LABELS: Record<ActionType, string> = {
   create_task: 'Create task',
   create_case: 'Create case',
-  send_notification: 'Send notification',
 };
 
 const TRIGGER_LABELS: Record<TriggerType, string> = {
@@ -427,27 +421,6 @@ export function WorkflowBuilderPage(): JSX.Element {
             });
             log.push(`✅ ${step.title}: Case created (${t.id})`);
             results.push({ stepId: step.id, outcome: 'completed', resourceRef: `Task/${t.id}` });
-          } else if (step.actionType === 'send_notification') {
-            const c = await medplum.createResource<Communication>({
-              resourceType: 'Communication',
-              status: 'completed',
-              category: [
-                {
-                  coding: [
-                    {
-                      system: 'https://widercircle.com/fhir/CodeSystem/communication-category',
-                      code: 'wf-notification',
-                      display: 'Workflow notification',
-                    },
-                  ],
-                },
-              ],
-              subject: { reference: `Patient/${runPatient}`, display: patientLabel },
-              sent: new Date().toISOString(),
-              payload: [{ contentString: step.title + (step.description ? ` — ${step.description}` : '') }],
-            });
-            log.push(`✅ ${step.title}: Notification sent (${c.id})`);
-            results.push({ stepId: step.id, outcome: 'completed', resourceRef: `Communication/${c.id}` });
           }
         } catch (err) {
           const reason = normalizeErrorString(err);
@@ -575,9 +548,7 @@ export function WorkflowBuilderPage(): JSX.Element {
               <Badge variant="light">{plans.length}</Badge>
             </Group>
             <Text c="dimmed" size="sm">
-              CM-20 — author triggered automations as a sequence of steps and run them on members.
-              Demo build supports manual run + create-task / create-case / send-notification actions.
-              Trigger ingestion + SLA timers are deferred per spec scope.
+              No-code builder for triggered automations: chain steps with optional conditional routing, then run on a member.
             </Text>
           </Stack>
           <Group gap="xs">
@@ -695,7 +666,6 @@ export function WorkflowBuilderPage(): JSX.Element {
                               {s.conditionKey && s.conditionValue && (
                                 <> · <em>if {s.conditionKey}={s.conditionValue}</em></>
                               )}
-                              {s.slaMinutes ? ` · SLA ${s.slaMinutes}m` : ''}
                             </Text>
                           </Group>
                         ))}
@@ -902,19 +872,6 @@ export function WorkflowBuilderPage(): JSX.Element {
                       value={step.conditionValue ?? ''}
                       onChange={(e) =>
                         updateStep(idx, { conditionValue: e.currentTarget.value || undefined })
-                      }
-                    />
-                    <TextInput
-                      type="number"
-                      label="SLA (minutes)"
-                      placeholder="1440"
-                      value={step.slaMinutes !== undefined ? String(step.slaMinutes) : ''}
-                      onChange={(e) =>
-                        updateStep(idx, {
-                          slaMinutes: e.currentTarget.value
-                            ? Number(e.currentTarget.value)
-                            : undefined,
-                        })
                       }
                     />
                   </Group>
