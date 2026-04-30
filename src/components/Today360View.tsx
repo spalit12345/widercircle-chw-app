@@ -1,0 +1,698 @@
+// SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
+// SPDX-License-Identifier: Apache-2.0
+//
+// CD-18 Today — visual port of Design v2 / ui_kits/cms_platform/chw-today.jsx.
+// Renders only the main column (status header, KPI strip, schedule rows,
+// task rows). The v2 sketch's TopRibbon + left/right rails (caseload search,
+// sync widget, supervisor nudge) and the CD-17 threshold widget are deferred
+// — they need data we don't fetch yet (caseload-wide Observation sums, MDM
+// status, supervisor messages).
+
+import type { Appointment, Task } from '@medplum/fhirtypes';
+import {
+  IconAlertOctagon,
+  IconAlertTriangle,
+  IconArrowRight,
+  IconCalendarTime,
+  IconCheck,
+  IconChevronRight,
+  IconClipboardCheck,
+  IconClock,
+  IconHome,
+  IconPhone,
+  IconPlus,
+  IconTimeline,
+  IconUserPlus,
+} from '@tabler/icons-react';
+import { type JSX, type ReactNode } from 'react';
+
+const COLOR_INK = 'var(--wc-base-800, #012B49)';
+const COLOR_INK_2 = 'var(--wc-base-700, #34556D)';
+const COLOR_FG_MUTE = 'var(--wc-base-600, #506D85)';
+const COLOR_FG_HELP = 'var(--wc-base-500, #8499AA)';
+const COLOR_BORDER = 'var(--wc-base-200, #E2E6E9)';
+const COLOR_SURFACE_SUBTLE = 'var(--wc-base-100, #F6F7F8)';
+const COLOR_BRAND = 'var(--wc-primary-500, #EA6424)';
+const COLOR_BRAND_TINT = 'var(--wc-primary-100, #FDEEE6)';
+const COLOR_BRAND_BORDER = 'var(--wc-primary-300, #F39A61)';
+const COLOR_DANGER = 'var(--wc-error-600, #D1190D)';
+const COLOR_DANGER_TINT = 'var(--wc-error-100, #FCE9E1)';
+const COLOR_TEAL_BG = 'var(--wc-success-100, #DDF3F2)';
+const COLOR_TEAL_FG = 'var(--wc-success-700, #015F5D)';
+
+interface ScheduleEntry {
+  time: string;
+  duration: string;
+  type: string;
+  member: string;
+  memberMeta?: string;
+  location?: string;
+  isNext?: boolean;
+  appointmentId?: string;
+  patientId?: string;
+}
+
+interface TaskRow {
+  id: string;
+  done: boolean;
+  title: string;
+  meta: string;
+  patientId?: string;
+  patientLabel?: string;
+  priority: 'overdue' | 'high' | 'med' | 'low';
+}
+
+export interface Today360Props {
+  greetingName: string;
+  todayLabel: string;
+  scheduleToday: Appointment[];
+  dueToday: Task[];
+  overdue: Task[];
+  appointmentTime: (a: Appointment) => string;
+  patientLabelFor: (ref: string | undefined) => string | undefined;
+  onNewTask: () => void;
+  onOpenAppointment: (apptId: string | undefined, patientId: string | undefined) => void;
+  onOpenTask: (taskId: string | undefined) => void;
+  onOpenPatient: (patientId: string | undefined) => void;
+  onNavigate: (path: string) => void;
+}
+
+const todayDateLabel = (): string => {
+  const now = new Date();
+  return now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+};
+
+export function Today360View(props: Today360Props): JSX.Element {
+  const visitsCount = props.scheduleToday.length;
+  const overdueCount = props.overdue.length;
+  const dueCount = props.dueToday.length;
+
+  // Map appointments → ScheduleEntry for the v2 row.
+  const scheduleEntries: ScheduleEntry[] = props.scheduleToday.slice(0, 6).map((a, idx) => ({
+    time: props.appointmentTime(a),
+    duration: a.minutesDuration ? `${a.minutesDuration} min` : '—',
+    type: a.serviceType?.[0]?.text ?? a.appointmentType?.text ?? 'Appointment',
+    member:
+      props.patientLabelFor(a.participant?.find((p) => p.actor?.reference?.startsWith('Patient/'))?.actor?.reference) ??
+      a.participant?.find((p) => p.actor?.reference?.startsWith('Patient/'))?.actor?.display ??
+      'Member',
+    memberMeta: a.description,
+    location: a.participant?.find((p) => p.actor?.reference?.startsWith('Location/'))?.actor?.display,
+    isNext: idx === 0,
+    appointmentId: a.id,
+    patientId: a.participant?.find((p) => p.actor?.reference?.startsWith('Patient/'))?.actor?.reference?.replace('Patient/', ''),
+  }));
+
+  const taskRow = (t: Task, fallbackPriority: 'overdue' | 'high' | 'med'): TaskRow => {
+    const fhirPri = t.priority;
+    const priority: TaskRow['priority'] =
+      fhirPri === 'asap'
+        ? 'overdue'
+        : fhirPri === 'urgent'
+        ? 'high'
+        : fhirPri === 'routine'
+        ? 'med'
+        : fallbackPriority;
+    const patientRef = t.for?.reference ?? '';
+    return {
+      id: t.id ?? '',
+      done: t.status === 'completed',
+      title: t.code?.text ?? t.description ?? 'Task',
+      meta: [
+        t.restriction?.period?.end ? `Due ${t.restriction.period.end.slice(0, 10)}` : null,
+        t.intent === 'order' ? 'Auto · trigger' : 'Manual',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      patientId: patientRef.startsWith('Patient/') ? patientRef.slice('Patient/'.length) : undefined,
+      patientLabel: t.for?.display ?? props.patientLabelFor(patientRef),
+      priority,
+    };
+  };
+
+  const allTasks: TaskRow[] = [
+    ...props.overdue.map((t) => taskRow(t, 'overdue')),
+    ...props.dueToday.map((t) => taskRow(t, 'high')),
+  ];
+
+  return (
+    <div
+      style={{
+        padding: '32px 36px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 24,
+        minHeight: '100%',
+        background: '#fff',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        color: COLOR_INK,
+      }}
+    >
+      {/* Hero KPI strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <KPIStat
+          icon={<IconCalendarTime size={18} />}
+          label="Today's visits"
+          value={String(visitsCount)}
+          sub={
+            scheduleEntries.length === 0
+              ? 'Clear day.'
+              : scheduleEntries
+                  .slice(0, 2)
+                  .map((e) => `${e.member} ${e.time}`)
+                  .join(' · ')
+          }
+        />
+        <KPIStat
+          icon={<IconClipboardCheck size={18} />}
+          label="Tasks due today"
+          value={String(dueCount)}
+          sub={dueCount === 0 ? 'Nothing due today.' : 'Including auto-created from triggers'}
+        />
+        <KPIStat
+          icon={<IconAlertTriangle size={18} />}
+          label="Overdue"
+          value={String(overdueCount)}
+          sub={overdueCount === 0 ? 'No overdue items.' : 'Snooze or escalate'}
+          tone={overdueCount > 0 ? 'danger' : undefined}
+        />
+        <KPIStat
+          icon={<IconTimeline size={18} />}
+          label="Caseload"
+          value="—"
+          sub="Threshold widget arrives with CD-17 cohort dashboard"
+          muted
+        />
+      </div>
+
+      {/* Today's schedule */}
+      <Section title="Today's schedule" subtitle="Geofenced reminders fire 30m before · in-home routes optimized for traffic">
+        {scheduleEntries.length === 0 ? (
+          <Empty label="Clear day. Nothing scheduled." />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {scheduleEntries.map((e) => (
+              <ScheduleRowV2
+                key={e.appointmentId ?? `${e.time}-${e.member}`}
+                entry={e}
+                onOpen={() => props.onOpenAppointment(e.appointmentId, e.patientId)}
+              />
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* Tasks */}
+      <Section
+        title="Tasks"
+        subtitle="Auto-created from triggers (SDoH thresholds, sequence rules) plus your manual tasks"
+        right={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={props.onNewTask}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 30,
+                padding: '0 12px',
+                borderRadius: 8,
+                border: `1px solid ${COLOR_BORDER}`,
+                background: '#fff',
+                color: COLOR_INK_2,
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <IconPlus size={12} /> New task
+            </button>
+            <FilterChipPair
+              chips={[
+                { label: 'Overdue', count: overdueCount, active: true, tone: 'danger', icon: <IconAlertOctagon size={12} /> },
+                { label: 'Due today', count: dueCount },
+              ]}
+            />
+          </div>
+        }
+      >
+        {allTasks.length === 0 ? (
+          <Empty label="No tasks waiting." />
+        ) : (
+          <div
+            style={{
+              background: '#fff',
+              border: `1px solid ${COLOR_BORDER}`,
+              borderRadius: 15,
+              overflow: 'hidden',
+            }}
+          >
+            {allTasks.map((row) => (
+              <TaskRowV2
+                key={row.id}
+                row={row}
+                onOpen={() => props.onOpenTask(row.id)}
+                onOpenPatient={() => row.patientId && props.onOpenPatient(row.patientId)}
+              />
+            ))}
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+/* ─────── Helpers ─────── */
+
+function Chip({
+  tone = 'slate',
+  dot,
+  children,
+}: {
+  tone?: 'brand' | 'warn' | 'info' | 'slate';
+  dot?: boolean;
+  children: ReactNode;
+}): JSX.Element {
+  const tones = {
+    brand: { bg: COLOR_BRAND_TINT, fg: 'var(--wc-primary-700, #B84E1A)', dot: COLOR_BRAND },
+    warn: { bg: COLOR_DANGER_TINT, fg: 'var(--wc-error-700, #A73304)', dot: COLOR_DANGER },
+    info: { bg: COLOR_TEAL_BG, fg: COLOR_TEAL_FG, dot: 'var(--wc-success-500, #2F8A89)' },
+    slate: { bg: COLOR_SURFACE_SUBTLE, fg: COLOR_FG_MUTE, dot: COLOR_FG_HELP },
+  };
+  const t = tones[tone];
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '3px 10px',
+        borderRadius: 14,
+        background: t.bg,
+        color: t.fg,
+        fontFamily: 'Inter',
+        fontSize: 11,
+        fontWeight: 600,
+      }}
+    >
+      {dot && <span style={{ width: 6, height: 6, borderRadius: 3, background: t.dot }} />}
+      {children}
+    </span>
+  );
+}
+
+function RibbonButton({ onClick, icon, children }: { onClick: () => void; icon: ReactNode; children: ReactNode }): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        height: 32,
+        padding: '0 12px',
+        borderRadius: 8,
+        border: `1px solid ${COLOR_BORDER}`,
+        background: '#fff',
+        color: COLOR_INK_2,
+        fontFamily: 'Inter',
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function KPIStat({
+  icon,
+  label,
+  value,
+  sub,
+  tone,
+  muted,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  sub: string;
+  tone?: 'danger';
+  muted?: boolean;
+}): JSX.Element {
+  const accent = tone === 'danger' ? COLOR_DANGER : COLOR_INK_2;
+  return (
+    <div
+      style={{
+        background: muted ? COLOR_SURFACE_SUBTLE : '#fff',
+        border: `1px solid ${COLOR_BORDER}`,
+        borderRadius: 15,
+        padding: 18,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        opacity: muted ? 0.85 : 1,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: COLOR_FG_MUTE }}>
+        {icon}
+        <span
+          style={{
+            fontFamily: 'Inter',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            color: COLOR_FG_HELP,
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        style={{
+          fontFamily: 'Montserrat, system-ui, sans-serif',
+          fontWeight: 700,
+          fontSize: 28,
+          color: accent,
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </div>
+      <div style={{ fontFamily: 'Inter', fontSize: 11.5, color: COLOR_FG_HELP, lineHeight: '17px' }}>{sub}</div>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  subtitle,
+  right,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h2
+            style={{
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 18,
+              color: COLOR_INK,
+              margin: 0,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {title}
+          </h2>
+          {subtitle && (
+            <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP, marginTop: 4 }}>{subtitle}</div>
+          )}
+        </div>
+        {right}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FilterChipPair({
+  chips,
+}: {
+  chips: { label: string; count: number; active?: boolean; tone?: 'danger'; icon?: ReactNode }[];
+}): JSX.Element {
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {chips.map((c) => (
+        <span
+          key={c.label}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 10px',
+            borderRadius: 14,
+            border: `1px solid ${c.active ? COLOR_BRAND_BORDER : COLOR_BORDER}`,
+            background: c.active ? COLOR_BRAND_TINT : '#fff',
+            color: c.active ? 'var(--wc-primary-700, #B84E1A)' : COLOR_INK_2,
+            fontFamily: 'Inter',
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {c.icon}
+          {c.label}
+          {c.count > 0 && (
+            <span
+              style={{
+                minWidth: 18,
+                height: 18,
+                padding: '0 6px',
+                borderRadius: 9,
+                background: c.tone === 'danger' ? COLOR_DANGER : COLOR_INK_2,
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {c.count}
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ScheduleRowV2({ entry, onOpen }: { entry: ScheduleEntry; onOpen: () => void }): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '88px 32px 1fr auto',
+        gap: 14,
+        padding: '14px 16px',
+        alignItems: 'center',
+        background: entry.isNext ? COLOR_BRAND_TINT : '#fff',
+        border: `1px solid ${entry.isNext ? COLOR_BRAND_BORDER : COLOR_BORDER}`,
+        borderRadius: 12,
+      }}
+    >
+      <div>
+        <div style={{ fontFamily: 'Azeret Mono, monospace', fontWeight: 700, fontSize: 14, color: COLOR_INK }}>
+          {entry.time}
+        </div>
+        <div style={{ fontSize: 10, color: COLOR_FG_HELP }}>{entry.duration}</div>
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 9,
+          background: entry.isNext ? '#fff' : COLOR_SURFACE_SUBTLE,
+          color: COLOR_INK_2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {entry.type.toLowerCase().includes('phone') ? <IconPhone size={16} /> : <IconHome size={16} />}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: COLOR_INK }}>{entry.member}</span>
+          {entry.isNext && <Chip tone="brand" dot>Up next</Chip>}
+          <span style={{ fontSize: 11, color: COLOR_FG_MUTE }}>· {entry.type}</span>
+        </div>
+        {entry.memberMeta && <div style={{ fontSize: 11, color: COLOR_FG_HELP }}>{entry.memberMeta}</div>}
+        {entry.location && <div style={{ fontSize: 11, color: COLOR_FG_MUTE, marginTop: 2 }}>{entry.location}</div>}
+      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 32,
+          padding: '0 12px',
+          borderRadius: 8,
+          border: 'none',
+          background: entry.isNext ? COLOR_BRAND : '#fff',
+          color: entry.isNext ? '#fff' : COLOR_INK_2,
+          fontFamily: 'Inter',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          boxShadow: entry.isNext ? 'none' : `inset 0 0 0 1px ${COLOR_BORDER}`,
+        }}
+      >
+        {entry.isNext ? 'Open intake' : 'Open'}
+        <IconArrowRight size={12} />
+      </button>
+    </div>
+  );
+}
+
+function TaskRowV2({
+  row,
+  onOpen,
+  onOpenPatient,
+}: {
+  row: TaskRow;
+  onOpen: () => void;
+  onOpenPatient: () => void;
+}): JSX.Element {
+  const toneFg =
+    row.priority === 'overdue'
+      ? 'var(--wc-error-700, #A73304)'
+      : row.priority === 'high'
+      ? 'var(--wc-warning-700, #C97800)'
+      : COLOR_FG_MUTE;
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '24px 1fr auto auto',
+        gap: 14,
+        alignItems: 'center',
+        padding: '14px 18px',
+        borderBottom: `1px solid ${COLOR_BORDER}`,
+        opacity: row.done ? 0.55 : 1,
+      }}
+    >
+      <div
+        role="checkbox"
+        aria-checked={row.done}
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: 5,
+          border: `1.5px solid ${row.done ? 'var(--wc-success-500, #2F8A89)' : 'var(--wc-base-300, #D6DCDF)'}`,
+          background: row.done ? 'var(--wc-success-500, #2F8A89)' : '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {row.done && <IconCheck size={11} color="#fff" />}
+      </div>
+      <div style={{ minWidth: 0, cursor: 'pointer' }} onClick={onOpen}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: COLOR_INK,
+            textDecoration: row.done ? 'line-through' : 'none',
+          }}
+        >
+          {row.title}
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: toneFg,
+            marginTop: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {row.priority === 'overdue' && <IconAlertOctagon size={11} />}
+          {row.meta}
+        </div>
+      </div>
+      {row.patientLabel && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPatient();
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'transparent',
+            border: 0,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          <span
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              background: COLOR_SURFACE_SUBTLE,
+              color: COLOR_INK_2,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 10,
+            }}
+          >
+            {row.patientLabel.split(' ').slice(0, 2).map((p) => p[0] ?? '').join('').toUpperCase() || 'M'}
+          </span>
+          <span style={{ fontSize: 11, color: COLOR_FG_MUTE }}>{row.patientLabel}</span>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label="Open task"
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 7,
+          border: 'none',
+          background: 'transparent',
+          color: COLOR_FG_HELP,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <IconChevronRight size={14} />
+      </button>
+    </div>
+  );
+}
+
+function Empty({ label }: { label: string }): JSX.Element {
+  return (
+    <div
+      style={{
+        padding: 28,
+        border: `1px dashed ${COLOR_BORDER}`,
+        borderRadius: 12,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        color: COLOR_FG_HELP,
+      }}
+    >
+      <IconClock size={16} />
+      <span style={{ fontSize: 12 }}>{label}</span>
+    </div>
+  );
+}

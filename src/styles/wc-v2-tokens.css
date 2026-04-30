@@ -1,0 +1,306 @@
+/* ============================================================
+   Wider Circle — Design System Tokens
+   Colors + Typography foundations
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&display=swap');
+
+/* ---------- Inter (body / UI) — self-hosted ----------
+   Variable font covers all weights + slants; static files kept as fallback. */
+@font-face { font-family: 'Inter'; font-style: oblique 0deg 10deg; font-weight: 100 900; font-display: swap;
+  src: url('fonts/Inter-VariableFont_slnt_wght.ttf') format('truetype-variations'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 100; font-display: swap;
+  src: url('fonts/Inter-Thin-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 200; font-display: swap;
+  src: url('fonts/Inter-ExtraLight-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 300; font-display: swap;
+  src: url('fonts/Inter-Light-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/Inter-Regular-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('fonts/Inter-Medium-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('fonts/Inter-SemiBold-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('fonts/Inter-Bold-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url('fonts/Inter-ExtraBold-slnt_0.ttf') format('truetype'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 900; font-display: swap;
+  src: url('fonts/Inter-Black-slnt_0.ttf') format('truetype'); }
+
+/* ---------- Montserrat (brand display) — self-hosted ---------- */
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 100; font-display: swap;
+  src: url('fonts/Montserrat-Thin.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 100; font-display: swap;
+  src: url('fonts/Montserrat-ThinItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 200; font-display: swap;
+  src: url('fonts/Montserrat-ExtraLight.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 200; font-display: swap;
+  src: url('fonts/Montserrat-ExtraLightItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 300; font-display: swap;
+  src: url('fonts/Montserrat-Light.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 300; font-display: swap;
+  src: url('fonts/Montserrat-LightItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/Montserrat-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 400; font-display: swap;
+  src: url('fonts/Montserrat-Italic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('fonts/Montserrat-Medium.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 500; font-display: swap;
+  src: url('fonts/Montserrat-MediumItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('fonts/Montserrat-SemiBold.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 600; font-display: swap;
+  src: url('fonts/Montserrat-SemiBoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('fonts/Montserrat-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 700; font-display: swap;
+  src: url('fonts/Montserrat-BoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url('fonts/Montserrat-ExtraBold.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 800; font-display: swap;
+  src: url('fonts/Montserrat-ExtraBoldItalic.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 900; font-display: swap;
+  src: url('fonts/Montserrat-Black.ttf') format('truetype'); }
+@font-face { font-family: 'Montserrat'; font-style: italic; font-weight: 900; font-display: swap;
+  src: url('fonts/Montserrat-BlackItalic.ttf') format('truetype'); }
+
+:root {
+  /* ---------- BASE / CARRY STRUCTURE (navy family) ----------
+     Used for text, primary CTAs, sidebar structure, hierarchy. */
+  --wc-base-800: #012B49;   /* main text / deepest ink (chip text on info backgrounds) */
+  --wc-base-700: #34556D;   /* subhead / strong labels / primary button bg */
+  --wc-base-600: #506D85;   /* secondary text / icon color */
+  --wc-base-500: #8499AA;   /* tertiary / helper text */
+  --wc-base-400: #A7B6C2;   /* placeholder text */
+  --wc-base-300: #D6DCDF;   /* subtle UI / secondary button border */
+  --wc-base-200: #E2E6E9;   /* border / divider */
+  --wc-base-100: #F6F7F8;   /* card / container surface */
+  --wc-base-0:   #FFFFFF;   /* page background, CTA text */
+
+  /* ---------- GRAYSCALE (for disabled / muted states) ---------- */
+  --wc-gray-900: #1A191B;
+  --wc-gray-600: #6F6D72;   /* subtle text */
+  --wc-gray-400: #A5A3A6;   /* disabled text + icons */
+  --wc-gray-200: #D7D6D8;   /* disabled background */
+  --wc-gray-100: #ECEBED;   /* divider */
+
+  /* ---------- BRAND / PRIMARY (orange — action + energy) ----------
+     Wider Circle's signature "carry" accent. Used on mark,
+     primary action pills, links, active states, badges. */
+  --wc-primary-700: #B84E1A; /* pressed */
+  --wc-primary-600: #D75A1D; /* hover-state variant */
+  --wc-primary-500: #EA6424; /* main CTA background / icon */
+  --wc-primary-400: #F26522; /* logo orange (from brand mark) */
+  --wc-primary-300: #F39A61; /* soft emphasis */
+  --wc-primary-200: #FFD5D3; /* light tint (appears in marketing) */
+  --wc-primary-100: #FDEEE6; /* subtle badge bg */
+  --wc-primary-50:  #FEF5E9; /* page tint */
+
+  /* Darker primary used frequently in marketing (deep terracotta) */
+  --wc-primary-900: #652F06; /* cover / splash bg */
+  --wc-primary-burn: #DC4405;
+
+  /* ---------- WARNING (amber — status / progress) ---------- */
+  --wc-warning-700: #C97800;
+  --wc-warning-500: #F99D1C; /* status indicator, warning icon */
+  --wc-warning-400: #FAA41A; /* logo gold (from brand mark) */
+  --wc-warning-300: #FBC56A;
+  --wc-warning-100: #FEF5E5;
+
+  /* ---------- ERROR (red-orange — progress, highlight) ---------- */
+  --wc-error-800: #7D0C05;
+  --wc-error-700: #A73304;
+  --wc-error-600: #D1190D; /* destructive button bg */
+  --wc-error-500: #DC4405;
+  --wc-error-400: #F06E3A;
+  --wc-error-100: #FCE9E1;
+
+  /* ---------- HIGHLIGHT (yellow — spotlight accent) ---------- */
+  --wc-highlight-600: #C9A83A;
+  --wc-highlight-500: #FDD757;
+  --wc-highlight-100: #FFF6D9;
+
+  /* ---------- INFORMATIVE (teal — avatars, info states) ---------- */
+  --wc-info-700: #015F5D;
+  --wc-info-500: #5AA8B8;
+  --wc-info-400: #9BD3DD;
+  --wc-info-300: #C7E8ED; /* avatar background */
+  --wc-info-100: #EAF7FA;
+
+  /* ---------- SUCCESS (blue-teal — positive) ---------- */
+  --wc-success-700: #015F5D;
+  --wc-success-500: #2F8A89;
+  --wc-success-400: #73B8B7;
+  --wc-success-100: #DDF3F2;
+
+  /* ---------- ORNAMENTAL (used sparingly, soft pink on marketing) ---------- */
+  --wc-ornamental: #FFD5D3;
+  --wc-ornamental-soft: #FF8E87;
+
+  /* ---------- AC SUB-BRAND (Activate Care violet) ----------
+     Wider Circle's AC product line uses a deep violet to differentiate
+     from the orange-led WC product. Use ONLY for AC-context UI. */
+  --ac-violet-900: #2E1E5A;
+  --ac-violet-800: #3B2A6B;
+  --ac-violet-600: #6B52B8;
+  --ac-violet-500: #7565B8;
+  --ac-violet-200: #C8BEE3;
+  --ac-violet-100: #EDEAF5;
+
+  /* ---------- SEMANTIC ALIASES ---------- */
+  --fg-1: var(--wc-base-800);      /* primary text */
+  --fg-2: var(--wc-base-700);      /* subhead */
+  --fg-3: var(--wc-base-600);      /* secondary text */
+  --fg-4: var(--wc-base-500);      /* tertiary / helper */
+  --fg-placeholder: var(--wc-base-400);
+  --fg-on-dark: var(--wc-base-0);
+  --fg-brand: var(--wc-primary-500);
+  --fg-link: var(--wc-primary-500);
+
+  --bg-page: var(--wc-base-0);
+  --bg-surface: var(--wc-base-0);
+  --bg-subtle: var(--wc-base-100);
+  --bg-muted:  var(--wc-base-200);
+  --bg-brand:  var(--wc-primary-500);
+  --bg-brand-soft: var(--wc-primary-100);
+  --bg-cover-dark: var(--wc-primary-900);
+
+  --border-default: var(--wc-base-200);
+  --border-strong:  var(--wc-base-300);
+  --border-input:   #CAD5E0;
+
+  /* ---------- ELEVATION ---------- */
+  --shadow-xs: 0 1px 2px 0 rgba(1, 43, 73, 0.06);
+  --shadow-sm: 0 1px 4px 0 rgba(1, 43, 73, 0.10);           /* default icon buttons */
+  --shadow-md: 0 4px 12px -2px rgba(1, 43, 73, 0.10);       /* cards */
+  --shadow-lg: 0 12px 32px -8px rgba(1, 43, 73, 0.16);      /* modals, menus */
+  --shadow-focus: 0 0 0 3px rgba(234, 100, 36, 0.22);       /* brand focus ring */
+
+  /* ---------- RADII ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 8px;      /* small chips, badges */
+  --radius-md: 12px;     /* buttons (rounded variant) */
+  --radius-lg: 15px;     /* inner cards, list rows */
+  --radius-xl: 20px;     /* primary cards, panels */
+  --radius-2xl: 30px;    /* pills, tags */
+  --radius-full: 999px;  /* avatars, pill buttons */
+
+  /* ---------- SPACING (4px grid) ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---------- TYPOGRAPHY ---------- */
+  --font-display: 'Montserrat', system-ui, sans-serif;   /* headings, hero */
+  --font-body:    'Inter', system-ui, sans-serif;         /* body copy, button text, labels */
+  --font-ui:      'Inter', system-ui, sans-serif;         /* alias — button text */
+  --font-label:   'Inter', system-ui, sans-serif;         /* alias — input labels, large body */
+  --font-mono:    'Azeret Mono', 'SF Mono', ui-monospace, monospace;
+
+  /* Fluid type scale — sourced from the Figma type specimen.
+     H1-H4 use Montserrat Bold; body uses Inter. */
+  --fs-h1: 30px;   --lh-h1: 36px;   /* Montserrat Bold — headlines */
+  --fs-h2a: 24px;  --lh-h2a: 32px;  /* sub headlines */
+  --fs-h2b: 20px;  --lh-h2b: 28px;  /* list titles */
+  --fs-h3a: 19px;  --lh-h3a: 28px;  /* list header, large buttons */
+  --fs-h3b: 16px;  --lh-h3b: 24px;  /* input header */
+  --fs-h4: 14px;   --lh-h4: 20px;   /* small header */
+
+  --fs-p1: 17px;  --lh-p1: 25px;   /* large body — Inter SemiBold */
+  --fs-p2: 15px;  --lh-p2: 22px;   /* default navbar titles */
+  --fs-p3: 14px;  --lh-p3: 20px;   /* body text, default buttons — Inter */
+  --fs-l1: 14px;  --lh-l1: 20px;   /* default links */
+  --fs-l2: 13px;  --lh-l2: 18px;   /* small links */
+  --fs-p4a: 12px; --lh-p4a: 16px;  /* small nav, small buttons, caption */
+  --fs-p4b: 11px; --lh-p4b: 14px;  /* small labels */
+}
+
+/* ============================================================
+   Semantic element styles (drop in globally when desired)
+   ============================================================ */
+
+.wc-h1, h1.wc {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  color: var(--fg-1);
+  letter-spacing: -0.01em;
+}
+.wc-h2, h2.wc {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h2a);
+  line-height: var(--lh-h2a);
+  color: var(--fg-1);
+}
+.wc-h3, h3.wc {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h3a);
+  line-height: var(--lh-h3a);
+  color: var(--fg-1);
+}
+.wc-h4, h4.wc {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-h4);
+  line-height: var(--lh-h4);
+  color: var(--fg-1);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.wc-p, p.wc, .wc-body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--fs-p3);
+  line-height: var(--lh-p3);
+  color: var(--fg-2);
+}
+.wc-p-large {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: var(--fs-p1);
+  line-height: var(--lh-p1);
+  color: var(--fg-1);
+}
+.wc-caption {
+  font-family: var(--font-body);
+  font-size: var(--fs-p4a);
+  line-height: var(--lh-p4a);
+  color: var(--fg-4);
+}
+.wc-eyebrow {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--fs-p4a);
+  line-height: 1;
+  letter-spacing: 0.055em;
+  color: var(--fg-4);
+  text-transform: uppercase;
+}
+.wc-mono, code.wc, .wc-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--fg-1);
+  background: var(--wc-base-100);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+.wc-link {
+  color: var(--fg-link);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+.wc-link:hover { color: var(--wc-primary-600); text-decoration: underline; }

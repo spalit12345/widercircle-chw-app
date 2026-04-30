@@ -20,8 +20,11 @@ import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDate, formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Appointment, Patient, Task } from '@medplum/fhirtypes';
-import { Document, useMedplum } from '@medplum/react';
+import { useMedplum } from '@medplum/react';
+import { Today360View } from '../components/Today360View';
+import { TodayCaseloadRail } from '../components/TodayCaseloadRail';
 import {
+  IconBell,
   IconCheck,
   IconClipboardCheck,
   IconClock,
@@ -145,6 +148,7 @@ export function TodayPage(): JSX.Element {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
+  const [patientResources, setPatientResources] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
 
@@ -177,6 +181,7 @@ export function TodayPage(): JSX.Element {
       ]);
       setAppointments(apptResults);
       setTasks(taskResults);
+      setPatientResources(patientResults);
       setPatients(
         patientResults.map((p: Patient) => ({
           value: p.id ?? '',
@@ -381,152 +386,205 @@ export function TodayPage(): JSX.Element {
     );
   };
 
+  const greetingName =
+    practitionerName.split(' ')[0] || 'CHW';
+  const patientLabelFor = (ref: string | undefined): string | undefined => {
+    if (!ref) return undefined;
+    const id = ref.startsWith('Patient/') ? ref.slice('Patient/'.length) : ref;
+    return patients.find((p) => p.value === id)?.label;
+  };
+
+  if (loading) {
+    return (
+      <Center py="xl">
+        <Loader size="lg" />
+      </Center>
+    );
+  }
+
+  const visitsToday = scheduleToday.length;
+  const taskCount = dueToday.length + overdue.length;
+  const overdueNow = overdue.length;
+  const dateLine = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+
   return (
-    <Document>
-      <Stack gap="lg">
-        <Group justify="space-between" align="flex-end">
-          <Stack gap={2}>
-            <Title order={2}>
-              {greeting()}, {practitionerName}.
-            </Title>
-            <Text c="dimmed" size="sm">
-              {formatDate(today)}
-            </Text>
-          </Stack>
-          <Button leftSection={<IconPlus size={16} />} onClick={openModal}>
-            New task
-          </Button>
-        </Group>
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#fff' }}>
+        {/* v2 top header — full width above the rails. Status indicator on
+            left, member-style identity (greeting + date), chip stats, then a
+            single notification bell on the right. New-task and Add-member
+            buttons explicitly NOT included per the user's last instruction —
+            New-task moves to the Tasks section header below. */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '14px 28px',
+            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
+            background: '#fff',
+            flexWrap: 'wrap',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                background: 'var(--wc-success-500, #2F8A89)',
+              }}
+            />
+            <span
+              style={{
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontWeight: 700,
+                fontSize: 12,
+                letterSpacing: '0.06em',
+                color: 'var(--wc-success-700, #015F5D)',
+                textTransform: 'uppercase',
+              }}
+            >
+              {greeting()}, {practitionerName}
+            </span>
+          </div>
+          <span
+            style={{
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 15,
+              color: 'var(--wc-base-800, #012B49)',
+              marginLeft: 14,
+            }}
+          >
+            {dateLine}
+          </span>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 14,
+              background: 'var(--wc-primary-100, #FDEEE6)',
+              color: 'var(--wc-primary-700, #B84E1A)',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-primary-500, #EA6424)' }} />
+            {visitsToday} visit{visitsToday === 1 ? '' : 's'} · {taskCount} task{taskCount === 1 ? '' : 's'}
+          </span>
+          {overdueNow > 0 && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 14,
+                background: 'var(--wc-error-100, #FCE9E1)',
+                color: 'var(--wc-error-700, #A73304)',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-error-600, #D1190D)' }} />
+              {overdueNow} overdue
+            </span>
+          )}
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 14,
+              background: 'var(--wc-info-100, #EAF7FA)',
+              color: 'var(--wc-info-700, #015F5D)',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+            title="Threshold cohort widget arrives with the CD-17 dashboard"
+          >
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-info-500, #5AA8B8)' }} />
+            CCM threshold cohort · pending CD-17
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            aria-label="Notifications"
+            title="Notifications"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              border: '1px solid var(--wc-base-200, #E2E6E9)',
+              background: '#fff',
+              color: 'var(--wc-base-700, #34556D)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+            }}
+          >
+            <IconBell size={16} />
+            {overdueNow > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 10,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: 'var(--wc-primary-500, #EA6424)',
+                  border: '2px solid #fff',
+                }}
+              />
+            )}
+          </button>
+        </div>
 
-        {/* Quick actions — every demo-relevant standalone flow lives behind one
-            click. Permissions hide actions the active role can't perform so the
-            on-stage role-switch trims the rail to what each persona uses. */}
-        {visibleQuickActions.length > 0 && (
-          <Card withBorder radius="md" padding="md">
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Title order={5}>Quick actions</Title>
-                <Text size="xs" c="dimmed">
-                  Launch the workflows you use most — no URL typing required.
-                </Text>
-              </Group>
-              <Group gap="xs" wrap="wrap">
-                {visibleQuickActions.map((action) => (
-                  <Button
-                    key={action.href}
-                    variant="light"
-                    color="blue"
-                    leftSection={<action.icon size={14} />}
-                    onClick={() => navigate(action.href)}
-                    title={action.description}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </Group>
-            </Stack>
-          </Card>
-        )}
-
-        {loading ? (
-          <Center py="xl">
-            <Loader size="lg" />
-          </Center>
-        ) : (
-          <>
-            {/* Schedule today */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={4}>Schedule today</Title>
-                  <Badge variant="light">{scheduleToday.length}</Badge>
-                </Group>
-                {scheduleToday.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    Clear day.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">
-                    {scheduleToday.map((appt) => {
-                      const patient = appt.participant?.find((p) =>
-                        p.actor?.reference?.startsWith('Patient/')
-                      );
-                      const patientId = patient?.actor?.reference?.replace('Patient/', '');
-                      const type = appt.appointmentType?.coding?.[0]?.code ?? appt.appointmentType?.text ?? '—';
-                      return (
-                        <Group
-                          key={appt.id}
-                          justify="space-between"
-                          wrap="nowrap"
-                          p="sm"
-                          style={{ borderRadius: 'var(--mantine-radius-sm)' }}
-                        >
-                          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                            <Text fw={600} size="sm" ff="monospace" w={72}>
-                              {appointmentTime(appt)}
-                            </Text>
-                            <Text
-                              size="sm"
-                              c={patientId ? 'blue' : undefined}
-                              style={patientId ? { cursor: 'pointer' } : undefined}
-                              onClick={() => patientId && navigate(`/Patient/${patientId}`)}
-                              truncate
-                            >
-                              {patient?.actor?.display ?? '—'}
-                            </Text>
-                          </Group>
-                          <Badge variant="light" size="sm">
-                            {type}
-                          </Badge>
-                        </Group>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            {/* Due today */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={4}>Due today</Title>
-                  <Badge variant="light">{dueToday.length}</Badge>
-                </Group>
-                {dueToday.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    Nothing due today — nice.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">{dueToday.map((t) => taskRow(t, false))}</Stack>
-                )}
-              </Stack>
-            </Card>
-
-            {/* Overdue */}
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={4}>Overdue</Title>
-                  <Badge
-                    color={overdue.length > 0 ? 'red' : 'gray'}
-                    variant={overdue.length > 0 ? 'filled' : 'light'}
-                  >
-                    {overdue.length}
-                  </Badge>
-                </Group>
-                {overdue.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    No overdue items.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">{overdue.map((t) => taskRow(t, true))}</Stack>
-                )}
-              </Stack>
-            </Card>
-          </>
-        )}
-      </Stack>
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          <TodayCaseloadRail
+            patients={patientResources}
+            appointments={appointments}
+            tasks={tasks}
+            todayISO={today}
+            appointmentTime={appointmentTime}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Today360View
+            greetingName={greetingName}
+            todayLabel={today}
+            scheduleToday={scheduleToday}
+            dueToday={dueToday}
+            overdue={overdue}
+            appointmentTime={appointmentTime}
+            patientLabelFor={patientLabelFor}
+            onNewTask={openModal}
+            onOpenAppointment={(_apptId, patientId) => {
+              if (patientId) navigate(`/members/${patientId}`);
+            }}
+            onOpenTask={(taskId) => taskId && navigate(`/Task/${taskId}`)}
+            onOpenPatient={(patientId) => patientId && navigate(`/Patient/${patientId}`)}
+            onNavigate={navigate}
+          />
+        </div>
+      </div>
+      </div>
 
       <Modal opened={modalOpened} onClose={closeModal} title="New task" size="md">
         <Stack gap="md">
@@ -576,6 +634,6 @@ export function TodayPage(): JSX.Element {
           </Button>
         </Stack>
       </Modal>
-    </Document>
+    </>
   );
 }

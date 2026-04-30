@@ -14,9 +14,12 @@ import { RouterProvider, createBrowserRouter } from 'react-router';
 import { App } from './App';
 import { RoleProvider } from './auth/RoleContext';
 import { TimerProvider } from './billing/TimerContext';
-// WC design tokens — exposes --wc-brand-*, --wc-base-*, --wc-error-*, etc.
-// to every component. Mantine theme below maps key slots to these tokens.
+// WC design tokens — v1 (Patient 360) loaded first so legacy --wc-brand-*
+// references continue to resolve, then v2 (CMS Platform) overrides the
+// shared --wc-base-* / --wc-primary-* / --wc-error-* values to the new
+// navy + orange system per Design v2/README.md.
 import '../Design/assets/wc-tokens.css';
+import './styles/wc-v2-tokens.css';
 
 const medplum = new MedplumClient({
   onUnauthenticated: () => (window.location.href = '/'),

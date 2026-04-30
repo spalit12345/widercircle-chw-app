@@ -296,62 +296,29 @@ export function TimeTrackingPage(): JSX.Element {
 
         {selectedPatient && (
           <>
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Group gap="md">
-                    <Text ff="monospace" size="xl" fw={700}>
-                      {formatDuration(liveSeconds)}
-                    </Text>
-                    {running ? (
-                      <Badge color="blue" variant="filled">Running</Badge>
-                    ) : (
-                      <Badge color="gray" variant="light">Idle</Badge>
-                    )}
-                  </Group>
-                  <Group>
-                    {!running ? (
-                      <Button color="blue" leftSection={<IconPlayerPlay size={16} />} onClick={start} disabled={saving || Boolean(noActivePlan)}>Start</Button>
-                    ) : (
-                      <>
-                        <Button color="yellow" leftSection={<IconPlayerPause size={16} />} onClick={() => setRunning(false)} variant="light">Pause</Button>
-                        <Button color="red" leftSection={<IconPlayerStop size={16} />} onClick={stop} loading={saving}>Stop & log</Button>
-                      </>
-                    )}
-                  </Group>
-                </Group>
-                {running && (
-                  <Alert variant="light" color="blue">
-                    <Text size="xs">
-                      Timer auto-stops after 30 min idle in production (AC-3) · extended to 4h on
-                      the demo build so a long presentation doesn&apos;t trip it.
-                    </Text>
-                  </Alert>
-                )}
-              </Stack>
-            </Card>
-
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={5}>This month</Title>
-                  <Badge variant="light" ff="monospace">{totalMinutes} min</Badge>
-                </Group>
-                <Progress value={progress.percentToNext} size="lg" color="grape" />
-                {progress.nextThreshold ? (
-                  <Text size="sm">
-                    <b>{progress.percentToNext}%</b> to <span style={{ fontFamily: 'monospace' }}>{progress.nextThreshold.code}</span> ({progress.nextThreshold.label}) · {progress.minutesRemaining} min remaining
-                  </Text>
-                ) : (
-                  <Text size="sm" c="dimmed">All CCM thresholds hit this month.</Text>
-                )}
-                {progress.currentThreshold && (
-                  <Badge color="green" variant="light">
-                    Current: {progress.currentThreshold.code} ({progress.currentThreshold.minutes} min · {progress.currentThreshold.label})
-                  </Badge>
-                )}
-              </Stack>
-            </Card>
+            {/* v2 billable-encounter widget — port of the active-call timer block.
+                Combines timer + threshold marker bar + Candid status into one card. */}
+            <BillableEncounterWidget
+              elapsedSeconds={liveSeconds + totalMinutes * 60}
+              currentCpt={progress.currentThreshold?.code ?? progress.nextThreshold?.code ?? '—'}
+              candidSynced={false}
+              running={running}
+              saving={saving}
+              disabled={Boolean(noActivePlan)}
+              totalMinutes={totalMinutes}
+              thresholds={CCM_THRESHOLDS}
+              onStart={start}
+              onPause={() => setRunning(false)}
+              onStop={stop}
+            />
+            {running && (
+              <Alert variant="light" color="blue">
+                <Text size="xs">
+                  Timer auto-stops after 30 min idle in production (AC-3) · extended to 4h on
+                  the demo build so a long presentation doesn&apos;t trip it.
+                </Text>
+              </Alert>
+            )}
 
             <Card withBorder radius="md" padding="md">
               <Stack gap="sm">
@@ -422,5 +389,275 @@ export function TimeTrackingPage(): JSX.Element {
         )}
       </Stack>
     </Document>
+  );
+}
+
+/* ─────── v2 billable-encounter widget ───────
+   Visual port of Design v2/ui_kits/cms_platform/active-call.jsx's
+   "BILLABLE ENCOUNTER · CHRONIC CARE MGMT" card. Big mm:ss timer,
+   inline current CPT in brand orange, Candid sync pill, threshold
+   marker bar with notches at each CPT cliff. */
+
+const formatMmSs = (seconds: number): string => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
+};
+
+function BillableEncounterWidget({
+  elapsedSeconds,
+  currentCpt,
+  candidSynced,
+  running,
+  saving,
+  disabled,
+  totalMinutes,
+  thresholds,
+  onStart,
+  onPause,
+  onStop,
+}: {
+  elapsedSeconds: number;
+  currentCpt: string;
+  candidSynced: boolean;
+  running: boolean;
+  saving: boolean;
+  disabled: boolean;
+  totalMinutes: number;
+  thresholds: { code: string; minutes: number; label: string }[];
+  onStart: () => void;
+  onPause: () => void;
+  onStop: () => void;
+}): JSX.Element {
+  const maxMinutes = thresholds[thresholds.length - 1]?.minutes ?? 60;
+  const fillPct = Math.min(100, (totalMinutes / maxMinutes) * 100);
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--wc-base-200, #E2E6E9)',
+        borderRadius: 18,
+        padding: '20px 24px 28px',
+        background: '#fff',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 14,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 11,
+              letterSpacing: '0.06em',
+              color: 'var(--wc-base-500, #8499AA)',
+              textTransform: 'uppercase',
+            }}
+          >
+            Billable encounter · Chronic care mgmt
+          </span>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '3px 10px',
+              borderRadius: 14,
+              background: candidSynced ? 'var(--wc-success-100, #DDF3F2)' : 'var(--wc-base-100, #F6F7F8)',
+              color: candidSynced ? 'var(--wc-success-700, #015F5D)' : 'var(--wc-base-600, #506D85)',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                background: candidSynced ? 'var(--wc-success-500, #2F8A89)' : 'var(--wc-base-400, #A7B6C2)',
+              }}
+            />
+            {candidSynced ? 'Candid synced' : 'Candid pending'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {!running ? (
+            <button
+              type="button"
+              onClick={onStart}
+              disabled={saving || disabled}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 32,
+                padding: '0 14px',
+                borderRadius: 16,
+                border: 'none',
+                background: disabled ? 'var(--wc-base-200, #E2E6E9)' : 'var(--wc-primary-500, #EA6424)',
+                color: '#fff',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <IconPlayerPlay size={14} /> Start timer
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onPause}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  height: 32,
+                  padding: '0 14px',
+                  borderRadius: 16,
+                  border: '1px solid var(--wc-base-200, #E2E6E9)',
+                  background: '#fff',
+                  color: 'var(--wc-base-700, #34556D)',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <IconPlayerPause size={14} /> Pause timer
+              </button>
+              <button
+                type="button"
+                onClick={onStop}
+                disabled={saving}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  height: 32,
+                  padding: '0 14px',
+                  borderRadius: 16,
+                  border: '1px solid var(--wc-error-600, #D1190D)',
+                  background: '#fff',
+                  color: 'var(--wc-error-700, #A73304)',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: saving ? 'wait' : 'pointer',
+                }}
+              >
+                <IconPlayerStop size={14} /> {saving ? 'Saving…' : 'Stop & log'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Big timer with arrow → CPT */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+        <span
+          style={{
+            fontFamily: 'Montserrat, system-ui, sans-serif',
+            fontWeight: 700,
+            fontSize: 38,
+            letterSpacing: '-0.02em',
+            color: 'var(--wc-base-800, #012B49)',
+            lineHeight: 1,
+          }}
+        >
+          {formatMmSs(elapsedSeconds)}
+        </span>
+        <span
+          style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontWeight: 600,
+            fontSize: 14,
+            color: 'var(--wc-base-500, #8499AA)',
+          }}
+        >
+          → CPT{' '}
+          <span style={{ color: 'var(--wc-primary-500, #EA6424)', fontWeight: 700 }}>
+            {currentCpt}
+          </span>
+        </span>
+      </div>
+
+      {/* Threshold marker bar */}
+      <div style={{ marginTop: 22, position: 'relative' }}>
+        <div
+          style={{
+            position: 'relative',
+            height: 6,
+            background: 'var(--wc-base-200, #E2E6E9)',
+            borderRadius: 3,
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              height: '100%',
+              width: `${fillPct}%`,
+              background: 'var(--wc-info-500, #5AA8B8)',
+              borderRadius: 3,
+              transition: 'width 0.3s ease-out',
+            }}
+          />
+          {thresholds.map((t) => {
+            const pos = Math.min(100, (t.minutes / maxMinutes) * 100);
+            return (
+              <div
+                key={`${t.minutes}-${t.code}`}
+                style={{
+                  position: 'absolute',
+                  left: `${pos}%`,
+                  top: -4,
+                  transform: 'translateX(-50%)',
+                  width: 2,
+                  height: 14,
+                  background: 'var(--wc-base-700, #34556D)',
+                  borderRadius: 1,
+                }}
+              />
+            );
+          })}
+        </div>
+        <div style={{ position: 'relative', marginTop: 10, height: 14 }}>
+          {thresholds.map((t, i) => {
+            const pos = Math.min(100, (t.minutes / maxMinutes) * 100);
+            const align = i === 0 ? 'left' : i === thresholds.length - 1 ? 'right' : 'center';
+            const transform =
+              align === 'left' ? 'translateX(0)' : align === 'right' ? 'translateX(-100%)' : 'translateX(-50%)';
+            return (
+              <span
+                key={`${t.minutes}-${t.code}-l`}
+                style={{
+                  position: 'absolute',
+                  left: `${pos}%`,
+                  transform,
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontSize: 11,
+                  color: totalMinutes >= t.minutes ? 'var(--wc-base-800, #012B49)' : 'var(--wc-base-500, #8499AA)',
+                  fontWeight: totalMinutes >= t.minutes ? 600 : 500,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {t.minutes}m · {t.code}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

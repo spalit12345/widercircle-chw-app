@@ -70,8 +70,8 @@ import {
   IconVirus,
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState, type JSX, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import { MemberKeyInfoHeader } from '../components/MemberKeyInfoHeader';
+import { useNavigate, useParams } from 'react-router';
+import { MemberContext360View } from '../components/MemberContext360View';
 import { useRole } from '../auth/RoleContext';
 import { emitAudit } from '../utils/audit';
 import { CONSENT_CATEGORY_CODE, evaluateConsentStatus } from './ConsentCapturePage';
@@ -692,593 +692,64 @@ export function MemberContextPage(): JSX.Element {
   });
   const ecmCapPct = Math.min(100, Math.round((ecmStatus.billable / ecmStatus.cap) * 100));
 
+  // Pull risk tier from extension (matches the previous MemberKeyInfoHeader read).
+  const riskTier =
+    data.patient?.extension?.find(
+      (e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/risk-tier'
+    )?.valueString ??
+    data.patient?.extension?.find(
+      (e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/risk-tier'
+    )?.valueCodeableConcept?.coding?.[0]?.code ??
+    null;
+
+  // Build the "more actions" menu for the rail. Each entry is permission-gated
+  // so a CHW only sees CHW affordances, etc. We still keep the rail's three
+  // primary icon buttons (Phone / Message / Calendar) for the warm-handoff
+  // moments most common in field work.
+  const moreActions: { label: string; onClick: () => void; icon?: JSX.Element }[] = [
+    ...(hasPermission('referrals.manage')
+      ? [{ label: 'Refer to supplier', onClick: () => navigate(`/referrals?patientId=${patientId}`) }]
+      : []),
+    { label: 'Log field visit', onClick: openVisitModal },
+    { label: 'Create case', onClick: openCaseModal },
+    ...(hasPermission('visit.conduct')
+      ? [{ label: 'Start telehealth visit', onClick: () => { handleStartVisit().catch(() => undefined); } }]
+      : []),
+    ...(hasPermission('careplan.author') ? [{ label: 'Author plan', onClick: () => navigate('/plan-of-care') }] : []),
+    ...(hasPermission('careplan.review')
+      ? [{ label: 'Review plan', onClick: () => navigate(`/plan-review?patient=${data.patient?.id ?? ''}`) }]
+      : []),
+    ...(hasPermission('careplan.edit')
+      ? [{ label: 'Edit plan', onClick: () => navigate(`/plan-edit?patient=${data.patient?.id ?? ''}`) }]
+      : []),
+    ...(hasPermission('eligibility.check') ? [{ label: 'Eligibility check', onClick: () => navigate('/eligibility') }] : []),
+    ...(hasPermission('time.track') ? [{ label: 'Time tracking', onClick: () => navigate('/time-tracking') }] : []),
+    ...(hasPermission('consent.capture') ? [{ label: 'Capture consent', onClick: () => navigate('/consent') }] : []),
+    { label: 'Open full chart', onClick: () => navigate(`/Patient/${patientId}`) },
+    { label: 'Edit relationships', onClick: () => navigate(`/members/${patientId}/relationships`) },
+  ];
+
   return (
-    <Document>
-      <Stack gap="md">
-        <MemberKeyInfoHeader patient={data.patient} coverages={data.coverages} consentValid={consentValid} />
+    <>
+      <MemberContext360View
+        patient={data.patient}
+        conditions={data.conditions}
+        medications={data.medications}
+        allergies={data.allergies}
+        consents={data.consents}
+        coverages={data.coverages}
+        carePlans={data.carePlans}
+        communications={data.communications}
+        cases={data.cases}
+        fieldVisits={data.fieldVisits}
+        consentValid={consentValid}
+        riskTier={riskTier}
+        onPhoneAction={openEcmModal}
+        onMessageAction={() => navigate('/Communication')}
+        onCalendarAction={() => navigate('/my-schedule')}
+        moreActions={moreActions}
+      />
 
-        {/* CD-05 FR-7 — visible consent gap warning so the CHW can't miss it
-            before launching a billable visit. */}
-        {!consentValid && (
-          <Alert color="red" variant="light" icon={<IconLock size={16} />}>
-            <Group justify="space-between" wrap="wrap">
-              <Text size="sm">
-                <b>Telehealth + CHI consent {consentStatus.state === 'expired' ? 'expired' : 'missing'}.</b>{' '}
-                Capture consent before launching a visit or recording any billable time.
-              </Text>
-              <Button
-                size="xs"
-                variant="light"
-                color="red"
-                leftSection={<IconSignature size={12} />}
-                onClick={() => navigate('/consent')}
-              >
-                Capture consent
-              </Button>
-            </Group>
-          </Alert>
-        )}
-        {consentExpiringSoon && (
-          <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
-            <Text size="sm">
-              <b>Consent expires {consentStatus.expiresOn ? formatDateTime(consentStatus.expiresOn) : ''}.</b>{' '}
-              Refresh attestation to avoid a billing gap.
-            </Text>
-          </Alert>
-        )}
-
-        <Group justify="flex-end" gap="sm">
-          <Button
-            variant="light"
-            color="indigo"
-            leftSection={<IconPhone size={14} />}
-            onClick={openEcmModal}
-          >
-            Log outreach
-          </Button>
-          <Button
-            variant="light"
-            color="teal"
-            leftSection={<IconMapPin size={14} />}
-            onClick={openVisitModal}
-          >
-            Log field visit
-          </Button>
-          <Button
-            variant="light"
-            color="grape"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCaseModal}
-          >
-            Create case
-          </Button>
-          {hasPermission('referrals.manage') && (
-            <Button
-              variant="light"
-              color="orange"
-              leftSection={<IconExternalLink size={14} />}
-              onClick={() => navigate(`/referrals?patientId=${patientId}`)}
-            >
-              Refer to supplier
-            </Button>
-          )}
-        </Group>
-
-        {/* Clinical workflow — the second row of buttons exists so the on-stage
-            demo never has to type a URL. Each button is permission-gated; the
-            CHW sees what a CHW can do, the Provider sees Author plan + Start
-            visit, etc. */}
-        <Group justify="flex-end" gap="sm">
-          {hasPermission('visit.conduct') && (
-            <Button
-              variant="filled"
-              color="blue"
-              leftSection={<IconVideo size={14} />}
-              loading={startingVisit}
-              onClick={handleStartVisit}
-            >
-              Start telehealth visit
-            </Button>
-          )}
-          {hasPermission('careplan.author') && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconNotes size={14} />}
-              onClick={() => navigate('/plan-of-care')}
-            >
-              Author plan
-            </Button>
-          )}
-          {hasPermission('careplan.review') && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconClipboardCheck size={14} />}
-              onClick={() => navigate(`/plan-review?patient=${data.patient.id}`)}
-            >
-              Review plan
-            </Button>
-          )}
-          {hasPermission('careplan.edit') && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconStethoscope size={14} />}
-              onClick={() => navigate('/plan-edit')}
-            >
-              Edit plan
-            </Button>
-          )}
-          {hasPermission('eligibility.check') && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconShieldCheck size={14} />}
-              onClick={() => navigate('/eligibility')}
-            >
-              Eligibility
-            </Button>
-          )}
-          {hasPermission('time.track') && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconClock size={14} />}
-              onClick={() => navigate('/time-tracking')}
-            >
-              Time tracking
-            </Button>
-          )}
-          {hasPermission('consent.capture') && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconSignature size={14} />}
-              onClick={() => navigate('/consent')}
-            >
-              Capture consent
-            </Button>
-          )}
-          <Button
-            variant="light"
-            color="blue"
-            leftSection={<IconHeartHandshake size={14} />}
-            onClick={() => navigate(`/sdoh?patient=${patientId}`)}
-          >
-            Give SDoH assessment
-          </Button>
-        </Group>
-
-        <Grid gutter="md">
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard title="Demographics" icon={<IconHome size={16} />}>
-              <DemographicsBlock patient={data.patient} />
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard title="Active conditions" icon={<IconStethoscope size={16} />} count={data.conditions.length}>
-              <ItemList
-                items={data.conditions.slice(0, 5).map((c) => ({
-                  key: c.id ?? '',
-                  primary: c.code?.text ?? c.code?.coding?.[0]?.display ?? 'Untitled',
-                  secondary: c.recordedDate ? `Recorded ${formatDateTime(c.recordedDate)}` : undefined,
-                }))}
-                empty="No active conditions on file."
-              />
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard title="Medications" icon={<IconPill size={16} />} count={data.medications.length}>
-              <ItemList
-                items={data.medications.slice(0, 5).map((m) => ({
-                  key: m.id ?? '',
-                  primary:
-                    m.medicationCodeableConcept?.text ??
-                    m.medicationCodeableConcept?.coding?.[0]?.display ??
-                    'Medication',
-                  secondary: m.dosageInstruction?.[0]?.text ?? undefined,
-                }))}
-                empty="No active medications."
-              />
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard title="Allergies" icon={<IconVirus size={16} />} count={data.allergies.length}>
-              <ItemList
-                items={data.allergies.slice(0, 5).map((a) => ({
-                  key: a.id ?? '',
-                  primary: a.code?.text ?? a.code?.coding?.[0]?.display ?? 'Allergy',
-                  secondary: a.criticality ? `Criticality: ${a.criticality}` : undefined,
-                }))}
-                empty="No known allergies."
-              />
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <RelationshipsCard
-              rows={relationshipRows}
-              patientId={patientId}
-              onEditExternal={() => navigate(`/members/${patientId}/relationships`)}
-            />
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard title="Consents" icon={<IconNotes size={16} />} count={data.consents.length}>
-              <ItemList
-                items={data.consents.slice(0, 5).map((c) => ({
-                  key: c.id ?? '',
-                  primary: c.category?.[0]?.text ?? c.category?.[0]?.coding?.[0]?.display ?? 'Consent',
-                  secondary: c.dateTime
-                    ? `${c.status} · ${formatDateTime(c.dateTime)}`
-                    : c.status,
-                }))}
-                empty="No consents recorded."
-              />
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard
-              title="Assessments"
-              icon={<IconClipboardCheck size={16} />}
-              count={data.assessments.length}
-            >
-              {data.assessments.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No assessments on file. Click "Give SDoH assessment" above to administer one.
-                </Text>
-              ) : (
-                <Stack gap="xs">
-                  {data.assessments.slice(0, 5).map((qr) => {
-                    const triggeredCount =
-                      qr.extension?.filter((e) => e.url === TRIGGERED_CASE_EXT_URL).length ?? 0;
-                    const label = qr.questionnaire?.includes('sdoh') ? 'SDoH assessment' : 'Assessment';
-                    return (
-                      <Group
-                        key={qr.id}
-                        justify="space-between"
-                        wrap="nowrap"
-                        p="xs"
-                        style={{
-                          borderBottom: '1px solid var(--mantine-color-gray-2)',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => navigate(`/Patient/${patientId}/assessments`)}
-                      >
-                        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                          <Text size="sm" fw={500} c="blue" truncate>
-                            {label}
-                          </Text>
-                          {qr.authored && (
-                            <Text size="xs" c="dimmed" ff="monospace">
-                              {formatDateTime(qr.authored)}
-                            </Text>
-                          )}
-                        </Stack>
-                        {triggeredCount > 0 && (
-                          <Badge color="yellow" size="xs" variant="light">
-                            {triggeredCount} case{triggeredCount === 1 ? '' : 's'}
-                          </Badge>
-                        )}
-                      </Group>
-                    );
-                  })}
-                </Stack>
-              )}
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, md: 6 }}>
-            <SectionCard title="Active care plan" icon={<IconCalendar size={16} />} count={data.carePlans.length}>
-              <ItemList
-                items={data.carePlans.slice(0, 3).map((p) => ({
-                  key: p.id ?? '',
-                  primary: p.title ?? 'Care plan',
-                  secondary: p.period?.start ? `Started ${formatDateTime(p.period.start)}` : undefined,
-                }))}
-                empty="No active care plan."
-              />
-            </SectionCard>
-          </Grid.Col>
-
-          {/* CM-22 — ECM outreach panel: cap counter, window counter,
-              billable vs non-billable breakdown. */}
-          <Grid.Col span={12}>
-            <SectionCard
-              title="ECM outreach"
-              icon={<IconPhone size={16} />}
-              count={ecmStatus.attempts}
-            >
-              <Stack gap="sm">
-                <Group justify="space-between" wrap="wrap">
-                  <Stack gap={2}>
-                    <Group gap="xs">
-                      <Text fw={700} size="lg" ff="monospace">
-                        {ecmStatus.billable} of {ecmStatus.cap}
-                      </Text>
-                      <Text size="sm" c="dimmed">
-                        billable attempts this window
-                      </Text>
-                    </Group>
-                    <Text size="xs" c="dimmed">
-                      {ecmStatus.nonBillable > 0 && `${ecmStatus.nonBillable} non-billable · `}
-                      {ecmStatus.windowClosed
-                        ? 'Window closed'
-                        : `${ecmStatus.daysRemaining} day${ecmStatus.daysRemaining === 1 ? '' : 's'} remaining in ${ECM_WINDOW_DAYS_DEFAULT}-day window`}
-                    </Text>
-                  </Stack>
-                  <Group gap="xs">
-                    {!ecmStatus.consentOnFile && (
-                      <Badge color="red" variant="filled" size="md">
-                        ECM consent missing
-                      </Badge>
-                    )}
-                    {ecmStatus.capReached && (
-                      <Badge color="red" variant="filled" size="md">
-                        Cap reached · further attempts non-billable
-                      </Badge>
-                    )}
-                    {!ecmStatus.capReached && ecmStatus.approachingCap && (
-                      <Badge color="orange" variant="filled" size="md">
-                        Approaching cap
-                      </Badge>
-                    )}
-                    {ecmStatus.windowClosed && (
-                      <Badge color="gray" variant="light" size="md">
-                        Window closed
-                      </Badge>
-                    )}
-                    {ecmStatus.consentOnFile && !ecmStatus.capReached && !ecmStatus.approachingCap && !ecmStatus.windowClosed && (
-                      <Badge color="green" variant="light" size="md">
-                        Within cap
-                      </Badge>
-                    )}
-                  </Group>
-                </Group>
-                <Progress
-                  value={ecmCapPct}
-                  size="md"
-                  color={ecmStatus.capReached ? 'red' : ecmStatus.approachingCap ? 'orange' : 'green'}
-                />
-                {(ecmStatus.capReached || ecmStatus.windowClosed) && (
-                  <Alert color="yellow" variant="light">
-                    <Text size="xs">
-                      Per CM-22 §AC, further outreach is still permitted but flagged
-                      non-billable. The ECM cap and window are admin-configurable per program (DA-08).
-                    </Text>
-                  </Alert>
-                )}
-                {!ecmStatus.consentOnFile && (
-                  <Alert color="red" variant="light" icon={<IconLock size={14} />}>
-                    <Text size="xs">
-                      No active ECM enrollment consent on file. Per CM-22 AC-3 every attempt is
-                      tracked for compliance but flagged <b>non-billable</b> until consent is
-                      captured. {ecmStatus.preConsentAttempts > 0 && (
-                        <>
-                          <b>{ecmStatus.preConsentAttempts}</b> attempt
-                          {ecmStatus.preConsentAttempts === 1 ? '' : 's'} this window are
-                          pre-consent.
-                        </>
-                      )}
-                    </Text>
-                  </Alert>
-                )}
-                {data.ecmAttempts.length > 0 && (
-                  <Stack gap={4}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
-                      Recent attempts
-                    </Text>
-                    {data.ecmAttempts.slice(0, 5).map((c) => {
-                      const channel = c.extension?.find((e) => e.url === ECM_CHANNEL_EXT)?.valueString;
-                      const outcome = c.extension?.find((e) => e.url === ECM_OUTCOME_EXT)?.valueString;
-                      const billable = c.extension?.find((e) => e.url === ECM_BILLABLE_EXT)?.valueBoolean;
-                      const channelLabel =
-                        ECM_CHANNELS.find((ch) => ch.value === channel)?.label ?? channel ?? '—';
-                      const outcomeLabel =
-                        ECM_OUTCOMES.find((o) => o.value === outcome)?.label ?? outcome ?? '—';
-                      return (
-                        <Group
-                          key={c.id}
-                          justify="space-between"
-                          wrap="nowrap"
-                          p="xs"
-                          style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
-                        >
-                          <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                            <Text size="sm" fw={500}>
-                              {channelLabel} · {outcomeLabel}
-                            </Text>
-                            {c.payload?.[0]?.contentString && (
-                              <Text size="xs" c="dimmed" truncate>
-                                {c.payload[0].contentString}
-                              </Text>
-                            )}
-                            {c.sent && (
-                              <Text size="xs" c="dimmed" ff="monospace">
-                                {formatDateTime(c.sent)}
-                                {c.sender?.display ? ` · ${c.sender.display}` : ''}
-                              </Text>
-                            )}
-                          </Stack>
-                          <Badge
-                            color={billable ? 'green' : 'gray'}
-                            variant="light"
-                            size="xs"
-                          >
-                            {billable ? 'billable' : 'non-billable'}
-                          </Badge>
-                        </Group>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Stack>
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={12}>
-            <SectionCard
-              title="Recent field visits"
-              icon={<IconMapPin size={16} />}
-              count={data.fieldVisits.length}
-            >
-              {data.fieldVisits.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No field visits logged yet. Click "Log field visit" above to capture a home,
-                  community, or phone touchpoint.
-                </Text>
-              ) : (
-                <Stack gap="xs">
-                  {data.fieldVisits.slice(0, 6).map((visit) => {
-                    const dispoCode = visit.reasonCode?.[0]?.coding?.[0]?.code ?? 'completed';
-                    const dispoLabel =
-                      FIELD_VISIT_DISPOSITIONS.find((d) => d.value === dispoCode)?.label ??
-                      dispoCode;
-                    const locationLabel = visit.type?.[0]?.text ?? 'Field visit';
-                    const note = visit.reasonCode?.[0]?.text;
-                    return (
-                      <Group
-                        key={visit.id}
-                        justify="space-between"
-                        wrap="nowrap"
-                        p="xs"
-                        style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
-                      >
-                        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                          <Text size="sm" fw={500}>
-                            {locationLabel}
-                          </Text>
-                          {note && (
-                            <Text size="xs" c="dimmed" truncate>
-                              {note}
-                            </Text>
-                          )}
-                          {visit.period?.start && (
-                            <Text size="xs" c="dimmed" ff="monospace">
-                              {formatDateTime(visit.period.start)} ·{' '}
-                              {visit.participant?.[0]?.individual?.display ?? 'CHW'}
-                            </Text>
-                          )}
-                        </Stack>
-                        <Badge
-                          color={
-                            dispoCode === 'completed'
-                              ? 'green'
-                              : dispoCode === 'partial'
-                                ? 'yellow'
-                                : 'gray'
-                          }
-                          size="xs"
-                          variant="light"
-                        >
-                          {dispoLabel}
-                        </Badge>
-                      </Group>
-                    );
-                  })}
-                </Stack>
-              )}
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={12}>
-            <SectionCard
-              title="Open cases"
-              icon={<IconBriefcase size={16} />}
-              count={data.cases.filter((c) => c.status !== 'completed' && c.status !== 'cancelled').length}
-            >
-              {data.cases.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  No cases for this member. Click "Create case" above to track an SDoH need, PCP referral,
-                  eligibility issue, or any ad-hoc case.
-                </Text>
-              ) : (
-                <Stack gap="xs">
-                  {data.cases.slice(0, 6).map((task) => {
-                    const typeCode =
-                      task.extension?.find((e) => e.url === CASE_TYPE_EXT)?.valueString ?? 'other';
-                    const closed = task.status === 'completed' || task.status === 'cancelled';
-                    return (
-                      <Group
-                        key={task.id}
-                        justify="space-between"
-                        wrap="nowrap"
-                        p="xs"
-                        style={{
-                          borderBottom: '1px solid var(--mantine-color-gray-2)',
-                          cursor: 'pointer',
-                          opacity: closed ? 0.6 : 1,
-                        }}
-                        onClick={() => task.id && navigate(`/Task/${task.id}`)}
-                      >
-                        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-                          <Text size="sm" fw={500} c="blue" truncate>
-                            {caseTypeLabel(typeCode)}
-                          </Text>
-                          {task.description && (
-                            <Text size="xs" c="dimmed" truncate>
-                              {task.description}
-                            </Text>
-                          )}
-                          {task.authoredOn && (
-                            <Text size="xs" c="dimmed" ff="monospace">
-                              opened {formatDateTime(task.authoredOn)}
-                            </Text>
-                          )}
-                        </Stack>
-                        <Group gap={6}>
-                          {task.priority && (
-                            <Badge
-                              color={task.priority === 'asap' ? 'red' : task.priority === 'urgent' ? 'orange' : 'blue'}
-                              size="xs"
-                              variant="light"
-                            >
-                              {CASE_PRIORITIES.find((p) => p.value === task.priority)?.label ?? task.priority}
-                            </Badge>
-                          )}
-                          <Badge
-                            color={closed ? 'gray' : task.status === 'in-progress' ? 'blue' : 'yellow'}
-                            size="xs"
-                            variant="light"
-                          >
-                            {task.status}
-                          </Badge>
-                        </Group>
-                      </Group>
-                    );
-                  })}
-                </Stack>
-              )}
-            </SectionCard>
-          </Grid.Col>
-
-          <Grid.Col span={12}>
-            <SectionCard title="Recent interactions" icon={<IconHistory size={16} />} count={data.communications.length}>
-              <ItemList
-                items={data.communications.slice(0, 6).map((c) => ({
-                  key: c.id ?? '',
-                  primary: c.payload?.[0]?.contentString ?? c.topic?.text ?? 'Communication',
-                  secondary: c.sent ? `${c.status} · ${formatDateTime(c.sent)}` : c.status,
-                }))}
-                empty="No interactions in the last 30 days."
-              />
-            </SectionCard>
-          </Grid.Col>
-        </Grid>
-
-        <Group justify="flex-end">
-          <Text size="sm" c="dimmed">
-            <Link to={`/Patient/${patientId}`} style={{ color: 'var(--mantine-color-orange-6)' }}>
-              Open full chart <IconChevronRight size={12} style={{ verticalAlign: 'middle' }} />
-            </Link>
-          </Text>
-        </Group>
-      </Stack>
 
       {/* CM-22: Log ECM outreach attempt. Creates a Communication with
           category=ecm-outreach + channel/outcome/billable extensions. The
@@ -1476,7 +947,7 @@ export function MemberContextPage(): JSX.Element {
           </Group>
         </Stack>
       </Modal>
-    </Document>
+    </>
   );
 }
 

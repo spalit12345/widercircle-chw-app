@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useRole } from '../auth/RoleContext';
 import { SignaturePad } from '../components/SignaturePad';
+import { PlanReview360View } from '../components/PlanReview360View';
 
 const SIGNATURE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-signature';
 
@@ -309,200 +310,22 @@ export function PlanReviewPage(): JSX.Element {
   }
 
   return (
-    <Document>
-      <Stack gap="md">
-        <Group justify="space-between" align="flex-end">
-          <Stack gap={2}>
-            <Title order={2}>Plan review</Title>
-            <Text c="dimmed" size="sm">
-              CHW view: assigned-to-me items first, then the rest. Read-only — status changes and full edits
-              flow through CD-14.
-            </Text>
-          </Stack>
-          {plan && (
-            <Badge variant="light" ff="monospace">
-              {plan.meta?.lastUpdated ? formatDateTime(plan.meta.lastUpdated) : ''}
-            </Badge>
-          )}
-        </Group>
-
-        <Select
-          label="Member"
-          placeholder="Pick a member"
-          data={patients}
-          value={selectedPatient}
-          onChange={(v) => setSelectedPatient(v ?? '')}
-          searchable
-          required
-        />
-
-        {selectedPatient && !plan && (
-          <Alert color="yellow" variant="light" icon={<IconLock size={16} />} title="No plan on file">
-            <Text size="sm">This member has no Plan of Care yet. Provider authors it via /plan-of-care (CD-08).</Text>
-          </Alert>
-        )}
-
-        {plan && (
-          <>
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="xs">
-                <Group justify="space-between" wrap="wrap">
-                  <Title order={4}>Care Plan for {plan.subject?.display ?? 'member'}</Title>
-                  <Group gap="xs">
-                    {versionHistory.length > 1 && (
-                      <Button
-                        size="xs"
-                        variant="light"
-                        leftSection={<IconGitCompare size={12} />}
-                        onClick={openDiff}
-                      >
-                        Show changes vs v{versionHistory.length - 1}
-                      </Button>
-                    )}
-                    <Badge color={plan.status === 'active' ? 'green' : 'gray'} variant="light">
-                      {plan.status}
-                    </Badge>
-                  </Group>
-                </Group>
-                {plan.description && <Text size="sm">{plan.description}</Text>}
-                <Text size="xs" c="dimmed">
-                  Authored {plan.author?.display ? `by ${plan.author.display}` : ''}{' '}
-                  {plan.created ? `· ${formatDateTime(plan.created)}` : ''}
-                </Text>
-              </Stack>
-            </Card>
-
-            <Card
-              withBorder
-              radius="md"
-              padding="md"
-              style={{ borderColor: 'var(--mantine-color-orange-3)', background: 'var(--mantine-color-orange-0)' }}
-            >
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={5}>Assigned to you</Title>
-                  <Badge color="orange" variant="filled" size="sm">
-                    {mine.length}
-                  </Badge>
-                </Group>
-                {mine.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    Nothing is directly assigned to you on this plan.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">
-                    {mine.map((item) => (
-                      <ReviewItemRow key={item.id} item={item} />
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            <Card withBorder radius="md" padding="md">
-              <Stack gap="sm">
-                <Group justify="space-between">
-                  <Title order={5}>All other items</Title>
-                  <Badge variant="light">{others.length}</Badge>
-                </Group>
-                {others.length === 0 ? (
-                  <Text size="sm" c="dimmed">
-                    No other items on this plan.
-                  </Text>
-                ) : (
-                  <Stack gap="xs">
-                    {others.map((item) => (
-                      <ReviewItemRow key={item.id} item={item} />
-                    ))}
-                  </Stack>
-                )}
-              </Stack>
-            </Card>
-
-            <Divider />
-
-            {alreadyAcked ? (
-              <Group justify="space-between" wrap="wrap">
-                <Text size="xs" c="dimmed" style={{ maxWidth: 400 }}>
-                  You already signed this plan. Signatures are immutable.
-                </Text>
-                <Badge color="green" variant="light" leftSection={<IconCheck size={12} />} size="lg">
-                  You signed this plan
-                </Badge>
-              </Group>
-            ) : !canSignAsProvider ? (
-              <Alert color="gray" variant="light" icon={<IconLock size={16} />} title="Care Provider sign-off required">
-                <Text size="sm">
-                  Only a Care Provider (MD) can sign this plan. Switch to the Care Provider role to capture the signature, or surface this plan to a Provider via /signoff-queue.
-                </Text>
-              </Alert>
-            ) : (
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Title order={5}>Care Provider signature</Title>
-                  <Text size="xs" c="dimmed">
-                    The signing Care Provider draws their signature below. The PNG is stored on the Communication resource for audit. Signatures are immutable.
-                  </Text>
-                  <SignaturePad onChange={setSignatureDataUrl} label="Care Provider signature" />
-                  <Group justify="flex-end">
-                    <Button
-                      color="blue"
-                      leftSection={<IconCheck size={16} />}
-                      onClick={ackThisPlan}
-                      loading={acking}
-                      disabled={acking || !plan || !signatureDataUrl}
-                    >
-                      Sign as Care Provider
-                    </Button>
-                  </Group>
-                </Stack>
-              </Card>
-            )}
-
-            {acks.length > 0 && (
-              <Card withBorder radius="md" padding="md">
-                <Stack gap="sm">
-                  <Group justify="space-between">
-                    <Title order={5}>Care Provider signatures</Title>
-                    <Badge variant="light">{acks.length}</Badge>
-                  </Group>
-                  <Stack gap="xs">
-                    {acks.slice(0, 10).map((a) => {
-                      const sig = a.payload?.find((p) => p.contentAttachment?.contentType === 'image/png');
-                      const data = sig?.contentAttachment?.data;
-                      return (
-                        <Group key={a.id} justify="space-between" p="xs" wrap="nowrap">
-                          <Group gap="sm" wrap="nowrap">
-                            <Badge color="green" variant="light" size="sm">
-                              {a.status ?? 'completed'}
-                            </Badge>
-                            <Text size="sm">{a.sender?.display ?? a.sender?.reference ?? '—'}</Text>
-                            {data && (
-                              <img
-                                src={`data:image/png;base64,${data}`}
-                                alt="Signature"
-                                style={{
-                                  height: 32,
-                                  border: '1px solid var(--mantine-color-gray-3)',
-                                  borderRadius: 4,
-                                  background: '#fff',
-                                }}
-                              />
-                            )}
-                          </Group>
-                          <Text size="xs" c="dimmed" ff="monospace">
-                            {a.sent ? formatDateTime(a.sent) : ''}
-                          </Text>
-                        </Group>
-                      );
-                    })}
-                  </Stack>
-                </Stack>
-              </Card>
-            )}
-          </>
-        )}
-      </Stack>
+    <>
+      <PlanReview360View
+        plan={plan}
+        patient={undefined}
+        items={items}
+        versionHistory={versionHistory}
+        acks={acks}
+        reviewState="draft"
+        alreadyAcked={alreadyAcked}
+        canSignAsProvider={canSignAsProvider}
+        acking={acking}
+        signatureDataUrl={signatureDataUrl}
+        setSignatureDataUrl={setSignatureDataUrl}
+        ackThisPlan={ackThisPlan}
+        onCompareV3={openDiff}
+      />
 
       {/* CD-08 AC-3 — Plan version diff. Compares latest vs previous version
           and lists items added, removed, and status-changed. */}
@@ -638,34 +461,79 @@ export function PlanReviewPage(): JSX.Element {
           )}
         </Stack>
       </Modal>
-    </Document>
+    </>
   );
 }
 
 function ReviewItemRow({ item }: { item: ReviewItem }): JSX.Element {
+  // v2 row pattern: vertical stripe + monospace ref label, item title in
+  // Inter Bold 13.5, owner + status as a meta line below.
   return (
-    <Group
-      justify="space-between"
-      p="xs"
-      style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}
-      wrap="nowrap"
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        background: '#fff',
+        border: '1px solid var(--wc-base-200, #E2E6E9)',
+        borderRadius: 12,
+        padding: 14,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
     >
-      <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-        <Text size="sm" fw={500}>
+      <span
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 8,
+          bottom: 8,
+          width: 3,
+          borderRadius: 2,
+          background:
+            item.status === 'completed' ? 'var(--wc-success-500, #2F8A89)'
+            : item.status === 'cancelled' || item.status === 'on-hold' ? 'var(--wc-base-400, #A7B6C2)'
+            : item.status === 'in-progress' ? 'var(--wc-primary-500, #EA6424)'
+            : 'var(--wc-base-300, #D6DCDF)',
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0, paddingLeft: 10 }}>
+        <div
+          style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: 'var(--wc-base-800, #012B49)',
+          }}
+        >
           {item.title}
-        </Text>
+        </div>
         {item.description && (
-          <Text size="xs" c="dimmed">
+          <div
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11.5,
+              color: 'var(--wc-base-500, #8499AA)',
+              marginTop: 3,
+            }}
+          >
             {item.description}
-          </Text>
+          </div>
         )}
-        <Text size="xs" c="dimmed">
-          Owner: {item.ownerLabel}
-        </Text>
-      </Stack>
+        <div
+          style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 11.5,
+            color: 'var(--wc-base-500, #8499AA)',
+            marginTop: 3,
+          }}
+        >
+          Owner: <span style={{ color: 'var(--wc-base-600, #506D85)' }}>{item.ownerLabel}</span>
+        </div>
+      </div>
       <Badge color={STATUS_COLORS[item.status]} variant="light" size="sm">
         {STATUS_LABELS[item.status]}
       </Badge>
-    </Group>
+    </div>
   );
 }

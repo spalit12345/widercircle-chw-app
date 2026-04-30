@@ -76,10 +76,50 @@ export function SignOffQueuePage(): JSX.Element {
   return (
     <Document>
       <Stack gap="md">
-        <Stack gap={2}>
-          <Title order={2}>Sign-off queue</Title>
-          <Text c="dimmed" size="sm">Provider queue of Plans of Care submitted for review. Approve (lock retained for audit) or return for revision. Sorted by oldest pending.</Text>
-        </Stack>
+        {/* v2 status ribbon */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            padding: '12px 0',
+            borderBottom: '1px solid var(--wc-base-200, #E2E6E9)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: '0.05em',
+              color: 'var(--wc-warning-700, #C97800)',
+              textTransform: 'uppercase',
+            }}
+          >
+            CD-09 · Provider sign-off queue
+          </span>
+          <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
+          <span
+            style={{
+              fontFamily: 'Montserrat, system-ui, sans-serif',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--wc-base-800, #012B49)',
+            }}
+          >
+            Plans of Care awaiting Provider review
+          </span>
+          <span
+            style={{
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 11,
+              color: 'var(--wc-base-600, #506D85)',
+            }}
+          >
+            Sorted oldest pending first · SLA colored
+          </span>
+        </div>
 
         <Card withBorder radius="md" padding="md">
           <Group justify="space-between">
