@@ -40,6 +40,7 @@ import type {
   Encounter,
   MedicationRequest,
   Patient,
+  QuestionnaireResponse,
   RelatedPerson,
   Task,
 } from '@medplum/fhirtypes';
@@ -197,6 +198,7 @@ interface LoadedData {
   fieldVisits: Encounter[];
   ecmAttempts: Communication[];
   relatedPersons: RelatedPerson[];
+  assessments: QuestionnaireResponse[];
 }
 
 const EMPTY: LoadedData = {
@@ -212,7 +214,12 @@ const EMPTY: LoadedData = {
   fieldVisits: [],
   ecmAttempts: [],
   relatedPersons: [],
+  assessments: [],
 };
+
+// CD-19 — extension URL written by SDoHAssessmentPage for each auto-triggered
+// case. We surface the count on the Assessments card.
+const TRIGGERED_CASE_EXT_URL = 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case';
 
 export function MemberContextPage(): JSX.Element {
   const medplum = useMedplum();
@@ -318,6 +325,7 @@ export function MemberContextPage(): JSX.Element {
         visits,
         ecmAttempts,
         relatedPersons,
+        assessments,
       ] = await Promise.all([
           medplum.readResource('Patient', patientId).catch(() => undefined),
           medplum.searchResources('Coverage', `${patientRef}&_count=10`).catch(() => []),
@@ -363,6 +371,12 @@ export function MemberContextPage(): JSX.Element {
               `${patientRef}&_count=20&_sort=-_lastUpdated`
             )
             .catch(() => [] as RelatedPerson[]),
+          medplum
+            .searchResources(
+              'QuestionnaireResponse',
+              `${subject}&_sort=-authored&_count=10`
+            )
+            .catch(() => [] as QuestionnaireResponse[]),
         ]);
       setData({
         patient,
@@ -377,6 +391,7 @@ export function MemberContextPage(): JSX.Element {
         fieldVisits: (visits ?? []) as Encounter[],
         ecmAttempts: (ecmAttempts ?? []) as Communication[],
         relatedPersons: (relatedPersons ?? []) as RelatedPerson[],
+        assessments: (assessments ?? []) as QuestionnaireResponse[],
       });
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
@@ -825,6 +840,14 @@ export function MemberContextPage(): JSX.Element {
               Capture consent
             </Button>
           )}
+          <Button
+            variant="light"
+            color="blue"
+            leftSection={<IconHeartHandshake size={14} />}
+            onClick={() => navigate(`/sdoh?patient=${patientId}`)}
+          >
+            Give SDoH assessment
+          </Button>
         </Group>
 
         <Grid gutter="md">
@@ -896,6 +919,57 @@ export function MemberContextPage(): JSX.Element {
                 }))}
                 empty="No consents recorded."
               />
+            </SectionCard>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <SectionCard
+              title="Assessments"
+              icon={<IconClipboardCheck size={16} />}
+              count={data.assessments.length}
+            >
+              {data.assessments.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No assessments on file. Click "Give SDoH assessment" above to administer one.
+                </Text>
+              ) : (
+                <Stack gap="xs">
+                  {data.assessments.slice(0, 5).map((qr) => {
+                    const triggeredCount =
+                      qr.extension?.filter((e) => e.url === TRIGGERED_CASE_EXT_URL).length ?? 0;
+                    const label = qr.questionnaire?.includes('sdoh') ? 'SDoH assessment' : 'Assessment';
+                    return (
+                      <Group
+                        key={qr.id}
+                        justify="space-between"
+                        wrap="nowrap"
+                        p="xs"
+                        style={{
+                          borderBottom: '1px solid var(--mantine-color-gray-2)',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => navigate(`/Patient/${patientId}/assessments`)}
+                      >
+                        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                          <Text size="sm" fw={500} c="blue" truncate>
+                            {label}
+                          </Text>
+                          {qr.authored && (
+                            <Text size="xs" c="dimmed" ff="monospace">
+                              {formatDateTime(qr.authored)}
+                            </Text>
+                          )}
+                        </Stack>
+                        {triggeredCount > 0 && (
+                          <Badge color="yellow" size="xs" variant="light">
+                            {triggeredCount} case{triggeredCount === 1 ? '' : 's'}
+                          </Badge>
+                        )}
+                      </Group>
+                    );
+                  })}
+                </Stack>
+              )}
             </SectionCard>
           </Grid.Col>
 
