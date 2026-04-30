@@ -10,6 +10,7 @@ import type { CarePlan, Communication, Patient } from '@medplum/fhirtypes';
 import {
   IconAlertTriangle,
   IconCheck,
+  IconArrowUpRight,
   IconClipboardList,
   IconDots,
   IconEdit,
@@ -22,6 +23,7 @@ import {
   IconPrinter,
   IconSend,
   IconSignature,
+  IconHeartHandshake,
   IconHierarchy,
 } from '@tabler/icons-react';
 import { type JSX, type ReactNode, useState } from 'react';
@@ -47,7 +49,7 @@ const COLOR_WARNING_TINT = '#FFF7E6';
 const COLOR_WARNING_BORDER = '#F1C56A';
 const COLOR_WARNING_FG = '#8B6508';
 
-type SectionKey = 'problems' | 'consents';
+type SectionKey = 'problems' | 'team' | 'consents';
 
 export interface ReviewItemForView {
   id: string;
@@ -111,6 +113,7 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
 
   const sections: { k: SectionKey; label: string; icon: ReactNode; n: number; sub: string }[] = [
     { k: 'problems', label: 'Action items', icon: <IconClipboardList size={16} />, n: props.items.length, sub: 'status flows through CD-14' },
+    { k: 'team', label: 'Care team', icon: <IconHeartHandshake size={16} />, n: 0, sub: 'managed on member profile' },
     { k: 'consents', label: 'Consents & signatures', icon: <IconSignature size={16} />, n: props.acks.length, sub: props.alreadyAcked ? 'CHW signed' : 'awaiting CHW' },
   ];
 
@@ -153,9 +156,12 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
           <Stepper currentIndex={1} steps={['Generated', 'CHW review', 'Provider sign', 'Member sign', 'Finalized']} />
 
           {section === 'problems' && <ProblemsSection items={props.items} />}
-          {section !== 'problems' && (
-            <EmptyTab label={sections.find((s) => s.k === section)?.label ?? section} />
+          {section === 'team' && (
+            <CareTeamSection
+              patientId={props.plan?.subject?.reference?.replace('Patient/', '')}
+            />
           )}
+          {section === 'consents' && <EmptyTab label="Consents & signatures" />}
         </main>
       </div>
     </div>
@@ -646,6 +652,62 @@ function ProblemRow({ item }: { item: ReviewItemForView }): JSX.Element {
         <IconButton icon={<IconDots size={14} />} />
       </div>
     </div>
+  );
+}
+
+function CareTeamSection({ patientId }: { patientId: string | undefined }): JSX.Element {
+  return (
+    <section>
+      <SectionTitle
+        title="Care team"
+        subtitle="Caregivers, family, and providers tied to this member. Edit on the member profile to keep one source of truth across plans."
+      />
+      <div
+        style={{
+          background: '#fff',
+          border: `1px solid ${COLOR_BORDER}`,
+          borderRadius: 15,
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        <Eyebrow>Where it lives</Eyebrow>
+        <div style={{ fontSize: 13, color: COLOR_INK_2, lineHeight: '20px', maxWidth: 520 }}>
+          Care team rosters live on the member profile alongside RelatedPerson records (caregivers,
+          family) and Practitioner assignments. The plan inherits whoever is on file there at sign
+          time.
+        </div>
+        {patientId ? (
+          <a
+            href={`/members/${patientId}/relationships`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 32,
+              padding: '0 14px',
+              borderRadius: 16,
+              border: 'none',
+              background: COLOR_BRAND,
+              color: '#fff',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            <IconArrowUpRight size={14} /> Open relationships on member profile
+          </a>
+        ) : (
+          <span style={{ fontSize: 12, color: COLOR_FG_HELP }}>
+            Pick a member above to manage their care team.
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 
