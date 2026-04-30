@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -25,7 +26,27 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconAlertTriangle, IconCheck, IconCopy, IconHeartHandshake, IconSend } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { emitAudit } from '../utils/audit';
+
+// CD-19 / CM-21 — SDoH-triggered Tasks must match the case-management coding
+// the member-profile "Open cases" card searches for (see MemberContextPage).
+const CASE_CATEGORY_SYSTEM = 'https://widercircle.com/fhir/CodeSystem/task-category';
+const CASE_CATEGORY_CODE = 'case-management';
+const CASE_TYPE_EXT = 'https://widercircle.com/fhir/StructureDefinition/case-type';
+
+// Map an SDoH risk caseType (free-text from the rules above) to the case-type
+// code shared with manual case creation, so SDoH-triggered cases render with
+// the same label and grouping. Unknown caseTypes pass through verbatim — the
+// card falls back to the raw string.
+const sdohCaseTypeToCategory = (caseType: string): string => {
+  const lower = caseType.toLowerCase();
+  if (lower.includes('food')) return 'sdoh-food';
+  if (lower.includes('housing')) return 'sdoh-housing';
+  if (lower.includes('transport')) return 'sdoh-transportation';
+  if (lower.includes('utilit')) return 'sdoh-utilities';
+  return caseType;
+};
 
 type QuestionType = 'single' | 'multi' | 'scale' | 'text';
 type RiskRule = { answer: string; caseType: string };
@@ -306,8 +327,13 @@ export function SDoHAssessmentPage(): JSX.Element {
   const medplum = useMedplum();
   const profile = medplum.getProfile();
 
+  // Deep-link from member profile: `/sdoh?patient=<id>` pre-selects the
+  // member so the CHW lands on the assessment ready to administer.
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get('patient') ?? '';
+
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [answers, setAnswers] = useState<Answers>({});
   const [submitting, setSubmitting] = useState(false);
   const [submittedResponse, setSubmittedResponse] = useState<QuestionnaireResponse | undefined>();
@@ -330,19 +356,26 @@ export function SDoHAssessmentPage(): JSX.Element {
   const triggered = useMemo(() => triggeredCases(sections, answers), [sections, answers]);
 
   useEffect(() => {
-    medplum
-      .searchResources('Patient', '_count=50&_sort=-_lastUpdated')
-      .then((results) =>
-        setPatients(
-          results.map((p: Patient) => ({
-            value: p.id ?? '',
-            label:
-              `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient',
-          }))
-        )
-      )
+    const patientLabel = (p: Patient): string =>
+      `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient';
+
+    Promise.all([
+      medplum.searchResources('Patient', '_count=50&_sort=-_lastUpdated'),
+      // If we landed via a deep-link, make sure that specific patient is in
+      // the dropdown even if they aren't in the recent-50 list.
+      initialPatient
+        ? medplum.readResource('Patient', initialPatient).catch(() => undefined)
+        : Promise.resolve(undefined),
+    ])
+      .then(([results, deepLinked]) => {
+        const list = results.map((p: Patient) => ({ value: p.id ?? '', label: patientLabel(p) }));
+        if (deepLinked?.id && !list.some((p) => p.value === deepLinked.id)) {
+          list.unshift({ value: deepLinked.id, label: patientLabel(deepLinked) });
+        }
+        setPatients(list);
+      })
       .catch((err) => showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false }));
-  }, [medplum]);
+  }, [medplum, initialPatient]);
 
   const setAnswer = useCallback((qId: string, value: string | string[] | undefined) => {
     setAnswers((prev) => ({ ...prev, [qId]: value }));
@@ -381,12 +414,22 @@ export function SDoHAssessmentPage(): JSX.Element {
               status: 'requested',
               intent: 'order',
               priority: caseType.toLowerCase().includes('crisis') ? 'urgent' : 'routine',
-              code: { text: caseType },
+              code: {
+                coding: [
+                  {
+                    system: CASE_CATEGORY_SYSTEM,
+                    code: CASE_CATEGORY_CODE,
+                    display: 'Case management',
+                  },
+                ],
+                text: caseType,
+              },
               description: `SDoH risk-triggered: ${caseType}`,
               focus: saved.id ? { reference: `QuestionnaireResponse/${saved.id}` } : undefined,
               for: { reference: `Patient/${selectedPatient}`, display: patientLabel },
               requester: practitionerRef ? { reference: practitionerRef, display: practitionerLabel } : undefined,
               authoredOn: new Date().toISOString(),
+              extension: [{ url: CASE_TYPE_EXT, valueString: sdohCaseTypeToCategory(caseType) }],
             })
             .then((t) => ({ ok: true as const, task: t, caseType }))
             .catch((err) => ({ ok: false as const, err, caseType }))
@@ -440,13 +483,22 @@ export function SDoHAssessmentPage(): JSX.Element {
       ?.filter((e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case')
       .map((e) => e.valueString)
       .filter((s): s is string => Boolean(s)) ?? [];
+    const submittedPatientId = submittedResponse.subject?.reference?.split('/')[1];
+    const submittedPatientLabel = submittedResponse.subject?.display ?? 'this member';
     return (
       <Document>
         <Stack gap="lg">
           <Alert color="green" icon={<IconCheck size={20} />} title="Assessment submitted">
             <Text size="sm">
               Submitted {submittedResponse.authored ? formatDateTime(submittedResponse.authored) : ''} for{' '}
-              <b>{submittedResponse.subject?.display}</b>.
+              {submittedPatientId ? (
+                <Anchor component={Link} to={`/members/${submittedPatientId}`} fw={700} c="inherit" underline="hover">
+                  {submittedPatientLabel}
+                </Anchor>
+              ) : (
+                <b>{submittedPatientLabel}</b>
+              )}
+              .
             </Text>
             <Text size="sm" mt="xs">
               {submittedCases.length === 0
