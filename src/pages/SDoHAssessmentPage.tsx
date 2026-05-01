@@ -585,12 +585,6 @@ export function SDoHAssessmentPage(): JSX.Element {
     }
   }, [selectedPatient, patients, profile, sections, answers, startedAt, medplum, triggered.length]);
 
-  const startOver = useCallback(() => {
-    setSubmittedResponse(undefined);
-    setAnswers({});
-    setSelectedPatient('');
-  }, []);
-
   if (submittedResponse) {
     const submittedCases = submittedResponse.extension
       ?.filter((e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case')
@@ -629,7 +623,12 @@ export function SDoHAssessmentPage(): JSX.Element {
             )}
           </Alert>
           <Group>
-            <Button onClick={startOver}>Start another assessment</Button>
+            <Button
+              onClick={() => submittedPatientId && navigate(`/members/${submittedPatientId}`)}
+              disabled={!submittedPatientId}
+            >
+              Back to patient
+            </Button>
           </Group>
         </Stack>
       </Document>

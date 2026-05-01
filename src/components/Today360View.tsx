@@ -8,6 +8,7 @@
 // — they need data we don't fetch yet (caseload-wide Observation sums, MDM
 // status, supervisor messages).
 
+import { Badge, Progress, Table } from '@mantine/core';
 import type { Appointment, Task } from '@medplum/fhirtypes';
 import {
   IconAlertOctagon,
@@ -25,6 +26,8 @@ import {
   IconUserPlus,
 } from '@tabler/icons-react';
 import { type JSX, type ReactNode } from 'react';
+import { getProgressColor, getStatusLabel } from '../billing/billing-utils';
+import type { BillingTotalRow } from '../billing/useCcmMonthlyTotals';
 
 const COLOR_INK = 'var(--wc-base-800, #012B49)';
 const COLOR_INK_2 = 'var(--wc-base-700, #34556D)';
@@ -81,6 +84,8 @@ export interface Today360Props {
   totalBillingRows: number;
   /** True while the underlying CCM aggregation is loading. */
   thresholdsLoading: boolean;
+  /** Per-patient billing rows for this month — surfaced as a focus list under Tasks. */
+  billingRows: BillingTotalRow[];
 }
 
 const todayDateLabel = (): string => {
@@ -334,6 +339,114 @@ export function Today360View(props: Today360Props): JSX.Element {
           </div>
         )}
       </Section>
+
+      {/* Billing thresholds — duplicates the table from BillingDashboardPage so
+          the CHW can see, without leaving Today, which patients still need
+          time logged this month. Sorted by minutes-still-needed (descending)
+          so the most-urgent members appear first. */}
+      <Section
+        title="Billable time needed"
+        subtitle="Sorted by minutes still needed to hit this month's CCM/CHI threshold"
+      >
+        <BillingThresholdsTable
+          rows={props.billingRows}
+          loading={props.thresholdsLoading}
+          onNavigate={props.onNavigate}
+        />
+      </Section>
+    </div>
+  );
+}
+
+function BillingThresholdsTable({
+  rows,
+  loading,
+  onNavigate,
+}: {
+  rows: BillingTotalRow[];
+  loading: boolean;
+  onNavigate: (path: string) => void;
+}): JSX.Element {
+  if (loading) {
+    return <Empty label="Loading billing totals…" />;
+  }
+  if (rows.length === 0) {
+    return <Empty label="No patients with billable activity this month." />;
+  }
+  // Most-needy first: highest (threshold - logged) at the top. Patients who
+  // already hit their threshold drop to the bottom; alphabetical within ties.
+  const sorted = [...rows].sort((a, b) => {
+    const remainA = Math.max(0, a.threshold - a.totalMinutes);
+    const remainB = Math.max(0, b.threshold - b.totalMinutes);
+    if (remainB !== remainA) return remainB - remainA;
+    return a.patientName.localeCompare(b.patientName);
+  });
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: `1px solid ${COLOR_BORDER}`,
+        borderRadius: 15,
+        overflow: 'hidden',
+      }}
+    >
+      <Table striped highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Patient</Table.Th>
+            <Table.Th>Program</Table.Th>
+            <Table.Th>Minutes This Month</Table.Th>
+            <Table.Th>Threshold</Table.Th>
+            <Table.Th>Minutes Needed</Table.Th>
+            <Table.Th>Progress</Table.Th>
+            <Table.Th>Suggested CPT</Table.Th>
+            <Table.Th>Status</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {sorted.map((row) => {
+            const remaining = Math.max(0, row.threshold - row.totalMinutes);
+            const status = getStatusLabel(row.progress);
+            return (
+              <Table.Tr
+                key={`${row.patientId}-${row.program}`}
+                role="link"
+                tabIndex={0}
+                style={{ cursor: 'pointer' }}
+                onClick={() => row.patientId && onNavigate(`/members/${row.patientId}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && row.patientId) {
+                    onNavigate(`/members/${row.patientId}`);
+                  }
+                }}
+              >
+                <Table.Td fw={500}>{row.patientName}</Table.Td>
+                <Table.Td>
+                  <Badge variant="light" size="sm">
+                    {row.program}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>{row.totalMinutes} min</Table.Td>
+                <Table.Td>{row.threshold} min</Table.Td>
+                <Table.Td fw={600} c={remaining === 0 ? 'green' : remaining > 30 ? 'red' : 'orange'}>
+                  {remaining === 0 ? '—' : `${remaining} min`}
+                </Table.Td>
+                <Table.Td w={180}>
+                  <Progress value={row.progress} color={getProgressColor(row.progress)} size="lg" w={120} />
+                </Table.Td>
+                <Table.Td>
+                  <Badge variant="light" color={row.suggestedCpt !== '—' ? 'blue' : 'gray'}>
+                    {row.suggestedCpt}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge color={status.color}>{status.label}</Badge>
+                </Table.Td>
+              </Table.Tr>
+            );
+          })}
+        </Table.Tbody>
+      </Table>
     </div>
   );
 }

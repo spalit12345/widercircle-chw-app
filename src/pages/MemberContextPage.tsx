@@ -724,7 +724,12 @@ export function MemberContextPage(): JSX.Element {
       : []),
     ...(hasPermission('eligibility.check') ? [{ label: 'Eligibility check', onClick: () => navigate('/eligibility') }] : []),
     ...(hasPermission('time.track') ? [{ label: 'Time tracking', onClick: () => navigate(`/time-tracking?patient=${patientId}`) }] : []),
-    ...(hasPermission('consent.capture') ? [{ label: 'Capture consent', onClick: () => navigate('/consent') }] : []),
+    ...(hasPermission('consent.capture')
+      ? [{ label: 'Capture consent', onClick: () => navigate(`/consent?patient=${patientId}`) }]
+      : []),
+    ...(hasPermission('sdoh.administer')
+      ? [{ label: 'SDoH assessment', onClick: () => navigate(`/sdoh?patient=${patientId}`) }]
+      : []),
     { label: 'Open full chart', onClick: () => navigate(`/Patient/${patientId}`) },
     { label: 'Edit relationships', onClick: () => navigate(`/members/${patientId}/relationships`) },
   ];

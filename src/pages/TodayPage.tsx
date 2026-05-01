@@ -141,7 +141,7 @@ export function TodayPage(): JSX.Element {
   const medplum = useMedplum();
   const navigate = useNavigate();
   const { hasPermission } = useRole();
-  const { summary: billingSummary, loading: billingLoading } = useCcmMonthlyTotals();
+  const { rows: billingRows, summary: billingSummary, loading: billingLoading } = useCcmMonthlyTotals();
   const visibleQuickActions = useMemo(
     () => QUICK_ACTIONS.filter((a) => !a.permission || hasPermission(a.permission)),
     [hasPermission]
@@ -586,6 +586,7 @@ export function TodayPage(): JSX.Element {
             approachingThresholdCount={billingSummary.approachingCount}
             totalBillingRows={billingSummary.totalRows}
             thresholdsLoading={billingLoading}
+            billingRows={billingRows}
           />
         </div>
       </div>
