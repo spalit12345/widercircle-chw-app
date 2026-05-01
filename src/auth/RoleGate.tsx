@@ -45,7 +45,7 @@ function ForbiddenPage({ role, permission }: { role: Role; permission: Permissio
       <Stack gap="md">
         <Stack gap={2}>
           <Title order={2}>Access denied</Title>
-          <Text c="dimmed" size="sm">DA-14 RBAC v1 default-deny.</Text>
+          <Text c="dimmed" size="sm">RBAC default-deny.</Text>
         </Stack>
         <Alert
           icon={<IconLock size={18} />}

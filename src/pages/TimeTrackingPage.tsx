@@ -8,7 +8,8 @@ import { Document, useMedplum } from '@medplum/react';
 import { IconAlertTriangle, IconPlayerPause, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { useTimer } from '../timer/TimerContext';
 import { getActiveCarePlanRef } from '../utils/care-plan-link';
 
 // CMS CCM thresholds (CPT codes) — minutes of clinical staff time per calendar month
@@ -63,14 +64,12 @@ export const sumObservationMinutes = (observations: Observation[]): number => {
 export function TimeTrackingPage(): JSX.Element {
   const medplum = useMedplum();
   const navigate = useNavigate();
-  const profile = medplum.getProfile();
+  const [searchParams] = useSearchParams();
+  const { activeTimer, elapsed, startTimer, stopTimer } = useTimer();
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(searchParams.get('patient') ?? activeTimer?.patientId ?? '');
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<Observation[]>([]);
-  const [running, setRunning] = useState(false);
-  const [startedAt, setStartedAt] = useState<number | undefined>();
-  const [tickNow, setTickNow] = useState(Date.now());
   const [saving, setSaving] = useState(false);
   // CD-08 + CD-17 gate: billable time requires an authored Plan of Care.
   // Undefined while we're checking; null = confirmed missing; string = ref id.
@@ -96,13 +95,16 @@ export function TimeTrackingPage(): JSX.Element {
       setEntries([]);
       return;
     }
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    // Use full UTC instants computed from the LOCAL month boundary so an
+    // entry logged late on the last local day (which lands in the next UTC
+    // day in negative-UTC timezones) still rolls into the right month.
+    const now = new Date();
+    const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).toISOString();
+    const nextMonthStartIso = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0).toISOString();
     try {
       const results = await medplum.searchResources(
         'Observation',
-        `subject=Patient/${patientId}&code=ccm-minutes&date=ge${monthStart.toISOString().slice(0, 10)}&_count=100&_sort=-date`
+        `subject=Patient/${patientId}&code=ccm-minutes&date=ge${monthStartIso}&date=lt${nextMonthStartIso}&_count=100&_sort=-date`
       );
       setEntries(results);
     } catch (err) {
@@ -113,6 +115,23 @@ export function TimeTrackingPage(): JSX.Element {
   useEffect(() => {
     loadEntries(selectedPatient).catch(console.error);
   }, [selectedPatient, loadEntries]);
+
+  // Honor ?patient= changes coming from the global timer banner so the page
+  // re-targets without forcing a remount.
+  useEffect(() => {
+    const fromUrl = searchParams.get('patient');
+    if (fromUrl && fromUrl !== selectedPatient) {
+      setSelectedPatient(fromUrl);
+    }
+  }, [searchParams, selectedPatient]);
+
+  // Re-fetch entries when the active timer clears (covers the case where the
+  // CHW stops the timer from the global banner instead of this page's widget).
+  useEffect(() => {
+    if (!activeTimer && selectedPatient) {
+      loadEntries(selectedPatient).catch(console.error);
+    }
+  }, [activeTimer, selectedPatient, loadEntries]);
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -127,72 +146,61 @@ export function TimeTrackingPage(): JSX.Element {
 
   const noActivePlan = selectedPatient && carePlanRef === null;
 
-  const liveSeconds = running && startedAt ? Math.floor((tickNow - startedAt) / 1000) : 0;
+  // Treat the global timer as "running for this page" only when the active
+  // timer matches the selected member. Cross-member timers stay visible in the
+  // banner but the per-page widget disables Start so we can't double-track.
+  const runningForSelected = !!activeTimer && activeTimer.patientId === selectedPatient;
+  const runningElsewhere = !!activeTimer && !runningForSelected;
+  const liveSeconds = runningForSelected ? elapsed : 0;
 
   const start = useCallback(() => {
-    setStartedAt(Date.now());
-    setRunning(true);
-  }, []);
+    if (!selectedPatient) return;
+    if (activeTimer) {
+      showNotification({
+        color: 'yellow',
+        message: `Timer already running for ${activeTimer.patientName}. Stop it before starting a new one.`,
+      });
+      return;
+    }
+    const patientName = patients.find((p) => p.value === selectedPatient)?.label ?? 'Member';
+    startTimer({ patientId: selectedPatient, patientName });
+  }, [selectedPatient, activeTimer, patients, startTimer]);
 
   const stop = useCallback(async () => {
-    if (!startedAt || !selectedPatient || !profile) return;
-    const endedAt = Date.now();
-    setRunning(false);
-    const minutes = Math.max(1, Math.round((endedAt - startedAt) / 60_000));
+    if (!runningForSelected) return;
     setSaving(true);
     try {
-      const payload: Observation = {
-        resourceType: 'Observation',
-        status: 'final',
-        code: {
-          coding: [
-            { system: 'https://widercircle.com/fhir/CodeSystem/time-tracking', code: 'ccm-minutes', display: 'CCM clinical staff time (minutes)' },
-          ],
-          text: 'CCM clinical staff time',
-        },
-        subject: { reference: `Patient/${selectedPatient}` },
-        effectivePeriod: {
-          start: new Date(startedAt).toISOString(),
-          end: new Date(endedAt).toISOString(),
-        },
-        issued: new Date().toISOString(),
-        performer: [{ reference: `Practitioner/${profile.id}` }],
-        valueQuantity: {
-          value: minutes,
-          unit: 'min',
-          system: 'http://unitsofmeasure.org',
-          code: 'min',
-        },
-      };
-      await medplum.createResource<Observation>(payload);
-      showNotification({ color: 'green', message: `Logged ${minutes} min` });
-      setStartedAt(undefined);
+      const result = await stopTimer();
+      if (result) {
+        const minutes = result.valueQuantity?.value ?? 0;
+        showNotification({ color: 'green', message: `Logged ${minutes} min` });
+      } else {
+        showNotification({ color: 'red', message: 'Failed to save time entry — see console.', autoClose: false });
+      }
       await loadEntries(selectedPatient);
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {
       setSaving(false);
     }
-  }, [startedAt, selectedPatient, profile, medplum, loadEntries]);
+  }, [runningForSelected, stopTimer, selectedPatient, loadEntries]);
 
-  // Idle auto-stop tick. When the threshold fires, route through `stop()` so
-  // the partial entry is saved instead of discarded — previously this just
-  // flipped `running` to false and the in-progress minutes were lost.
+  // Idle auto-stop. Pushes the partial entry through `stop()` so we don't lose
+  // logged minutes if a CHW leaves the timer running overnight.
   useEffect(() => {
-    if (!running) return;
+    if (!runningForSelected || !activeTimer) return;
     const id = setInterval(() => {
-      const now = Date.now();
-      setTickNow(now);
-      if (startedAt && now - startedAt > IDLE_AUTO_STOP_MS) {
+      const startedAtMs = new Date(activeTimer.startedAt).getTime();
+      if (Date.now() - startedAtMs > IDLE_AUTO_STOP_MS) {
         showNotification({
           color: 'yellow',
           message: `Timer auto-stopped after ${IDLE_AUTO_STOP_MS / 3600000}h idle — entry saved.`,
         });
         void stop();
       }
-    }, 1000);
+    }, 5000);
     return () => clearInterval(id);
-  }, [running, startedAt, stop]);
+  }, [runningForSelected, activeTimer, stop]);
 
   const totalMinutes = useMemo(() => sumObservationMinutes(entries), [entries]);
   const progress = useMemo(() => evaluateThresholdProgress(totalMinutes), [totalMinutes]);
@@ -217,8 +225,8 @@ export function TimeTrackingPage(): JSX.Element {
             title="No active Plan of Care for this member"
           >
             <Text size="sm">
-              Time logged here will not be billable until a Provider authors a Plan of Care
-              (CD-08). Start tracking after the plan exists.
+              Time logged here will not be billable until a Provider authors a Plan of Care.
+              Start tracking after the plan exists.
             </Text>
             <Button
               size="xs"
@@ -240,15 +248,24 @@ export function TimeTrackingPage(): JSX.Element {
               elapsedSeconds={liveSeconds + totalMinutes * 60}
               currentCpt={progress.currentThreshold?.code ?? progress.nextThreshold?.code ?? '—'}
               candidSynced={false}
-              running={running}
+              running={runningForSelected}
               saving={saving}
-              disabled={Boolean(noActivePlan)}
+              disabled={Boolean(noActivePlan) || runningElsewhere}
               totalMinutes={totalMinutes}
               thresholds={CCM_THRESHOLDS}
               onStart={start}
-              onPause={() => setRunning(false)}
+              onPause={stop}
               onStop={stop}
             />
+
+            {runningElsewhere && activeTimer && (
+              <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+                <Text size="sm">
+                  A timer is already running for <b>{activeTimer.patientName}</b>. Stop it from the orange
+                  banner above before starting a new one.
+                </Text>
+              </Alert>
+            )}
 
             {entries.length > 0 && (
               <Card withBorder radius="md" padding="md">

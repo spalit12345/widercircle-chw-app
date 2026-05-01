@@ -8,7 +8,7 @@
 // "no chrome" intent without losing the demo's role-flip moment.
 
 import { Indicator, Menu, UnstyledButton } from '@mantine/core';
-import { useMedplumProfile } from '@medplum/react';
+import { useMedplum, useMedplumProfile } from '@medplum/react';
 import {
   IconActivity,
   IconAlertHexagon,
@@ -19,6 +19,7 @@ import {
   IconChartHistogram,
   IconClipboardList,
   IconHome2,
+  IconLogout,
   IconSearch,
 } from '@tabler/icons-react';
 import type { JSX, ReactNode } from 'react';
@@ -27,6 +28,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useRole } from '../auth/RoleContext';
 import { ROLE_LABELS, ROLES, type Permission, type Role } from '../auth/roles';
 import { recordRoleChange } from '../auth/audit';
+import { TimerBanner } from './TimerBanner';
 
 interface NavItem {
   id: string;
@@ -59,7 +61,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'plans', label: 'Care plans', href: '/my-plans', Icon: IconClipboardList, match: (p) => p.startsWith('/my-plans') || p.startsWith('/plan-of-care') || p.startsWith('/plan-edit') || p.startsWith('/plan-review') || p.startsWith('/CarePlan'), requiresPermission: 'careplan.review' },
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing'), requiresPermission: 'billing.view' },
-  { id: 'referrals', label: 'Referrals', href: '/referrals', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking'), requiresPermission: 'referrals.manage' },
+  { id: 'referrals', label: 'Referrals', href: '/sdoh', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking'), requiresPermission: 'referrals.manage' },
   { id: 'reports', label: 'Reports', href: '/admin/audit-log', Icon: IconChartHistogram, match: (p) => p.startsWith('/admin/audit-log'), requiresPermission: 'admin.roles' },
   { id: 'alerts', label: 'Alerts', href: '/alerts', Icon: IconAlertHexagon, match: (p) => p.startsWith('/alerts') },
   { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconBell, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin/roles') || p.startsWith('/admin/workflows'), requiresPermission: 'admin.roles', separatorBefore: true },
@@ -209,6 +211,13 @@ function RailButton({
 function ProfileMenu(): JSX.Element {
   const { role, setRole } = useRole();
   const profile = useMedplumProfile();
+  const medplum = useMedplum();
+  const navigate = useNavigate();
+
+  const handleSignOut = (): void => {
+    medplum.signOut().catch(() => undefined);
+    navigate('/signin');
+  };
   const initials = useMemo(() => {
     const name = profile?.name?.[0];
     if (!name) return 'WC';
@@ -263,6 +272,10 @@ function ProfileMenu(): JSX.Element {
         <Menu.Divider />
         <Menu.Label>Active role</Menu.Label>
         <Menu.Item disabled>{ROLE_LABELS[role]}</Menu.Item>
+        <Menu.Divider />
+        <Menu.Item color="red" leftSection={<IconLogout size={14} />} onClick={handleSignOut}>
+          Sign out
+        </Menu.Item>
       </Menu.Dropdown>
     </Menu>
   );
@@ -287,6 +300,7 @@ export function WcShell({ children }: { children: ReactNode }): JSX.Element {
     >
       <LeftRail />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <TimerBanner />
         <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
       </div>
     </div>

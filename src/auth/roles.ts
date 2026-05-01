@@ -66,6 +66,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     'review.submit',
     'sdoh.administer',
     'referrals.manage',
+    'billing.view',
   ]),
   Provider: new Set<Permission>([
     'today.view',

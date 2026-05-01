@@ -182,7 +182,7 @@ export function SubmitForReviewPage(): JSX.Element {
 
         {selectedPatient && !plan && (
           <Alert color="yellow" variant="light" title="No plan to submit">
-            <Text size="sm">This member has no Plan of Care yet. Author one via /plan-of-care (CD-08) first.</Text>
+            <Text size="sm">This member has no Plan of Care yet. Author one via /plan-of-care first.</Text>
           </Alert>
         )}
 

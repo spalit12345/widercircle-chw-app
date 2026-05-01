@@ -55,7 +55,7 @@ export function AuditEventLogPage(): JSX.Element {
           <Stack gap={2}>
             <Title order={2}>Audit log</Title>
             <Text c="dimmed" size="sm">
-              DA-13 — every consent capture, visit launch/end, plan save/sign, SDoH submission, and case
+              Every consent capture, visit launch/end, plan save/sign, SDoH submission, and case
               creation writes a FHIR AuditEvent. v1 shows the most recent 100; production retention
               ≥ 6 years per spec lands with the server-side mirror.
             </Text>

@@ -715,15 +715,15 @@ export function MemberContextPage(): JSX.Element {
     ...(hasPermission('visit.conduct')
       ? [{ label: 'Start telehealth visit', onClick: () => { handleStartVisit().catch(() => undefined); } }]
       : []),
-    ...(hasPermission('careplan.author') ? [{ label: 'Author plan', onClick: () => navigate('/plan-of-care') }] : []),
-    ...(hasPermission('careplan.review')
+    ...(hasPermission('careplan.author') ? [{ label: 'Author plan', onClick: () => navigate(`/plan-of-care?patient=${patientId}`) }] : []),
+    ...(hasPermission('careplan.review') && data.carePlans.length > 0
       ? [{ label: 'Review plan', onClick: () => navigate(`/plan-review?patient=${data.patient?.id ?? ''}`) }]
       : []),
     ...(hasPermission('careplan.edit')
       ? [{ label: 'Edit plan', onClick: () => navigate(`/plan-edit?patient=${data.patient?.id ?? ''}`) }]
       : []),
     ...(hasPermission('eligibility.check') ? [{ label: 'Eligibility check', onClick: () => navigate('/eligibility') }] : []),
-    ...(hasPermission('time.track') ? [{ label: 'Time tracking', onClick: () => navigate('/time-tracking') }] : []),
+    ...(hasPermission('time.track') ? [{ label: 'Time tracking', onClick: () => navigate(`/time-tracking?patient=${patientId}`) }] : []),
     ...(hasPermission('consent.capture') ? [{ label: 'Capture consent', onClick: () => navigate('/consent') }] : []),
     { label: 'Open full chart', onClick: () => navigate(`/Patient/${patientId}`) },
     { label: 'Edit relationships', onClick: () => navigate(`/members/${patientId}/relationships`) },
@@ -768,7 +768,7 @@ export function MemberContextPage(): JSX.Element {
         <Stack gap="md">
           <Alert color="indigo" variant="light" icon={<IconPhone size={16} />}>
             <Text size="sm">
-              Per CM-22 every attempt counts toward the {ECM_CAP_DEFAULT}-attempt cap within{' '}
+              Every attempt counts toward the {ECM_CAP_DEFAULT}-attempt cap within{' '}
               {ECM_WINDOW_DAYS_DEFAULT} days. Refused / wrong-number outcomes are recorded but
               flagged non-billable. Cap-reached doesn't block — it just downgrades.
             </Text>

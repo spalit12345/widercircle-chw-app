@@ -169,7 +169,7 @@ export function EligibilityCheckPage(): JSX.Element {
               ? snapshot.errorReason
               : `Active · ${snapshot.planName}`,
         patient: { reference: `Patient/${selectedPatient}`, display: patientLabel },
-        request: { display: 'Bridge-simulated CoverageEligibilityRequest (CD-11 demo)' },
+        request: { display: 'Bridge-simulated CoverageEligibilityRequest (demo)' },
         requestor: {
           reference: `Practitioner/${profile.id}`,
           display:

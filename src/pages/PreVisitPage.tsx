@@ -239,7 +239,7 @@ export function PreVisitPage(): JSX.Element {
                   </Button>
                 </span>
               </Tooltip>
-              <Tooltip label="Consent capture (CD-05) lands separately" withArrow>
+              <Tooltip label="Consent capture lands separately" withArrow>
                 <span tabIndex={0} style={{ display: 'inline-flex' }}>
                   <Button variant="light" leftSection={<IconFileText size={16} />} disabled>
                     Capture consent
@@ -444,7 +444,7 @@ export function PreVisitPage(): JSX.Element {
         <Group gap="xs">
           <IconCheck size={14} color="var(--mantine-color-dimmed)" />
           <Text size="xs" c="dimmed">
-            This chart is read-only. Authoring unlocks when you launch the visit (CD-08).
+            This chart is read-only. Authoring unlocks when you launch the visit.
           </Text>
         </Group>
       </Stack>

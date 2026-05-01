@@ -15,18 +15,14 @@ import {
   IconDots,
   IconEdit,
   IconFileText,
-  IconGitCompare,
     IconLink,
-  IconMailForward,
-  IconPencil,
   IconPlus,
   IconPrinter,
-  IconSend,
   IconSignature,
   IconHeartHandshake,
   IconHierarchy,
 } from '@tabler/icons-react';
-import { type JSX, type ReactNode, useState } from 'react';
+import { type JSX, type ReactNode, useEffect, useState } from 'react';
 import { SignaturePad } from './SignaturePad';
 
 const COLOR_INK = 'var(--wc-base-800, #012B49)';
@@ -72,7 +68,10 @@ export interface PlanReview360Props {
   signatureDataUrl: string | null;
   setSignatureDataUrl: (data: string | null) => void;
   ackThisPlan: () => void;
-  onCompareV3: () => void;
+  providerSigned: boolean;
+  providerSignedAt: string | undefined;
+  providerSignedBy: string | undefined;
+  providerSignatureDataUrl: string | undefined;
 }
 
 function memberIdentity(patient: Patient | undefined, plan: CarePlan | undefined): string {
@@ -109,13 +108,34 @@ const STATUS_PALETTE: Record<ReviewItemForView['status'], { tone: 'info' | 'warn
 };
 
 export function PlanReview360View(props: PlanReview360Props): JSX.Element {
-  const [section, setSection] = useState<SectionKey>('problems');
+  const chwGated = !props.providerSigned && !props.canSignAsProvider;
+  const [section, setSection] = useState<SectionKey>(chwGated ? 'consents' : 'problems');
 
-  const sections: { k: SectionKey; label: string; icon: ReactNode; n: number; sub: string }[] = [
-    { k: 'problems', label: 'Action items', icon: <IconClipboardList size={16} />, n: props.items.length, sub: 'status flows through CD-14' },
-    { k: 'team', label: 'Care team', icon: <IconHeartHandshake size={16} />, n: 0, sub: 'managed on member profile' },
-    { k: 'consents', label: 'Consents & signatures', icon: <IconSignature size={16} />, n: props.acks.length, sub: props.alreadyAcked ? 'CHW signed' : 'awaiting CHW' },
+  // If the page loads while waiting on a Provider signature, keep CHWs and
+  // other reviewers parked on the Consents section so they can't tinker with
+  // action items before the plan is released.
+  useEffect(() => {
+    if (chwGated && section !== 'consents') {
+      setSection('consents');
+    }
+  }, [chwGated, section]);
+
+  const consentSub = props.providerSigned
+    ? 'released for CHW review'
+    : props.canSignAsProvider
+      ? 'signature required'
+      : 'awaiting Provider';
+
+  const sections: { k: SectionKey; label: string; icon: ReactNode; n: number; sub: string; locked?: boolean }[] = [
+    { k: 'problems', label: 'Action items', icon: <IconClipboardList size={16} />, n: props.items.length, sub: 'status flows through plan editing', locked: chwGated },
+    { k: 'team', label: 'Care team', icon: <IconHeartHandshake size={16} />, n: 0, sub: 'managed on member profile', locked: chwGated },
+    { k: 'consents', label: 'Consents & signatures', icon: <IconSignature size={16} />, n: props.acks.length, sub: consentSub },
   ];
+
+  // Stepper position: 0 generated → 1 provider sign → 2 CHW review → 3 member sign → 4 finalized.
+  // We only have signal for the first two transitions in this build; the rest are
+  // visual placeholders for the demo.
+  const stepperIndex = props.providerSigned ? 2 : 1;
 
   return (
     <div
@@ -134,7 +154,6 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
         patient={props.patient}
         version={props.versionHistory.length}
         reviewState={props.reviewState}
-        onCompareV3={props.onCompareV3}
       />
 
       {/* Body: 3 columns */}
@@ -144,7 +163,10 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
           versions={props.versionHistory}
           sections={sections}
           activeSection={section}
-          onSectionChange={setSection}
+          onSectionChange={(k) => {
+            if (chwGated && k !== 'consents') return;
+            setSection(k);
+          }}
         />
 
         <main style={{ flex: 1, minWidth: 0, padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 24, overflow: 'auto' }}>
@@ -153,7 +175,18 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
             changesSinceV3={props.versionHistory.length >= 2 ? Math.max(1, props.items.length - (props.versionHistory[1]?.activity?.length ?? 0)) : 0}
             reviewState={props.reviewState}
           />
-          <Stepper currentIndex={1} steps={['Generated', 'CHW review', 'Provider sign', 'Member sign', 'Finalized']} />
+          <Stepper
+            currentIndex={stepperIndex}
+            steps={['Generated', 'Provider sign', 'CHW review', 'Member sign', 'Finalized']}
+          />
+
+          <SignatureGateBanner
+            providerSigned={props.providerSigned}
+            providerSignedAt={props.providerSignedAt}
+            providerSignedBy={props.providerSignedBy}
+            canSignAsProvider={props.canSignAsProvider}
+            onJumpToSign={() => setSection('consents')}
+          />
 
           {section === 'problems' && <ProblemsSection items={props.items} />}
           {section === 'team' && (
@@ -161,10 +194,264 @@ export function PlanReview360View(props: PlanReview360Props): JSX.Element {
               patientId={props.plan?.subject?.reference?.replace('Patient/', '')}
             />
           )}
-          {section === 'consents' && <EmptyTab label="Consents & signatures" />}
+          {section === 'consents' && (
+            <ConsentsSection
+              providerSigned={props.providerSigned}
+              providerSignedAt={props.providerSignedAt}
+              providerSignedBy={props.providerSignedBy}
+              providerSignatureDataUrl={props.providerSignatureDataUrl}
+              canSignAsProvider={props.canSignAsProvider}
+              acking={props.acking}
+              signatureDataUrl={props.signatureDataUrl}
+              setSignatureDataUrl={props.setSignatureDataUrl}
+              ackThisPlan={props.ackThisPlan}
+            />
+          )}
         </main>
       </div>
     </div>
+  );
+}
+
+/* ─────── Provider signature gate ─────── */
+
+function SignatureGateBanner({
+  providerSigned,
+  providerSignedAt,
+  providerSignedBy,
+  canSignAsProvider,
+  onJumpToSign,
+}: {
+  providerSigned: boolean;
+  providerSignedAt: string | undefined;
+  providerSignedBy: string | undefined;
+  canSignAsProvider: boolean;
+  onJumpToSign: () => void;
+}): JSX.Element {
+  if (providerSigned) {
+    const when = providerSignedAt ? new Date(providerSignedAt).toLocaleString() : '—';
+    return (
+      <div
+        style={{
+          background: COLOR_TEAL_BG,
+          border: `1px solid ${COLOR_TEAL_DOT}`,
+          borderRadius: 12,
+          padding: '12px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          color: COLOR_TEAL_FG,
+          fontSize: 13,
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOR_TEAL_DOT }} />
+        <span style={{ fontWeight: 700 }}>Released for CHW review</span>
+        <span style={{ color: COLOR_INK_2 }}>
+          · signed by {providerSignedBy ?? 'Care Provider'} on {when}
+        </span>
+      </div>
+    );
+  }
+
+  const isProvider = canSignAsProvider;
+  return (
+    <div
+      style={{
+        background: COLOR_WARNING_TINT,
+        border: `1px solid ${COLOR_WARNING_BORDER}`,
+        borderRadius: 12,
+        padding: '12px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        color: COLOR_INK,
+        fontSize: 13,
+      }}
+    >
+      <IconAlertTriangle size={16} color={COLOR_WARNING_FG} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, color: COLOR_WARNING_FG, marginBottom: 2 }}>
+          {isProvider ? 'Signature required to release for CHW review' : 'Awaiting Provider signature'}
+        </div>
+        <div style={{ color: COLOR_INK_2, fontSize: 12 }}>
+          {isProvider
+            ? 'Sign below to release this plan to the CHW for review and member acknowledgement.'
+            : 'CHW review opens automatically once the Care Provider signs this plan.'}
+        </div>
+      </div>
+      {isProvider && (
+        <button
+          type="button"
+          onClick={onJumpToSign}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            height: 32,
+            padding: '0 14px',
+            borderRadius: 10,
+            border: 'none',
+            background: COLOR_BRAND,
+            color: '#fff',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          <IconSignature size={14} /> Sign now
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ConsentsSection({
+  providerSigned,
+  providerSignedAt,
+  providerSignedBy,
+  providerSignatureDataUrl,
+  canSignAsProvider,
+  acking,
+  signatureDataUrl,
+  setSignatureDataUrl,
+  ackThisPlan,
+}: {
+  providerSigned: boolean;
+  providerSignedAt: string | undefined;
+  providerSignedBy: string | undefined;
+  providerSignatureDataUrl: string | undefined;
+  canSignAsProvider: boolean;
+  acking: boolean;
+  signatureDataUrl: string | null;
+  setSignatureDataUrl: (data: string | null) => void;
+  ackThisPlan: () => void;
+}): JSX.Element {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SectionTitle
+        title="Provider signature"
+        subtitle="The Care Provider's signature releases this plan into CHW review and onward to member acknowledgement."
+      />
+
+      {providerSigned ? (
+        <div
+          style={{
+            background: '#fff',
+            border: `1px solid ${COLOR_TEAL_DOT}`,
+            borderRadius: 12,
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOR_TEAL_DOT }} />
+            <Eyebrow>Provider · signed</Eyebrow>
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: COLOR_INK }}>
+            {providerSignedBy ?? 'Care Provider'}
+          </div>
+          <div style={{ fontSize: 12, color: COLOR_FG_MUTE }}>
+            {providerSignedAt ? new Date(providerSignedAt).toLocaleString() : '—'} · plan released for CHW review
+          </div>
+          {providerSignatureDataUrl && (
+            <figure style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div
+                style={{
+                  background: COLOR_SURFACE_SUBTLE,
+                  border: `1px solid ${COLOR_BORDER}`,
+                  borderRadius: 10,
+                  padding: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <img
+                  src={providerSignatureDataUrl}
+                  alt={`Signature of ${providerSignedBy ?? 'Care Provider'}`}
+                  style={{ maxWidth: '100%', maxHeight: 140, display: 'block' }}
+                />
+              </div>
+              <figcaption style={{ fontSize: 11, color: COLOR_FG_HELP }}>
+                Captured signature · stored on the acknowledgment Communication
+              </figcaption>
+            </figure>
+          )}
+        </div>
+      ) : canSignAsProvider ? (
+        <div
+          style={{
+            background: '#fff',
+            border: `1px solid ${COLOR_BRAND_BORDER}`,
+            borderRadius: 12,
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOR_BRAND }} />
+            <Eyebrow>Provider · ready</Eyebrow>
+          </div>
+          <div style={{ fontSize: 13, color: COLOR_INK_2, lineHeight: '18px' }}>
+            By signing you attest that the action items above accurately reflect the plan of care for this
+            member. Your signature releases this plan for CHW review.
+          </div>
+          <SignaturePad onChange={setSignatureDataUrl} label="Care Provider signature" />
+          <button
+            type="button"
+            onClick={ackThisPlan}
+            disabled={acking || !signatureDataUrl}
+            style={{
+              marginTop: 4,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              height: 38,
+              borderRadius: 10,
+              border: 'none',
+              background: signatureDataUrl ? COLOR_BRAND : COLOR_BORDER,
+              color: '#fff',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: signatureDataUrl ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <IconSignature size={14} /> {acking ? 'Saving…' : 'Sign and release for CHW review'}
+          </button>
+        </div>
+      ) : (
+        <div
+          style={{
+            background: COLOR_WARNING_TINT,
+            border: `1px solid ${COLOR_WARNING_BORDER}`,
+            borderRadius: 12,
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <IconAlertTriangle size={14} color={COLOR_WARNING_FG} />
+            <Eyebrow style={{ color: COLOR_WARNING_FG }}>Awaiting Provider</Eyebrow>
+          </div>
+          <div style={{ fontSize: 13, color: COLOR_INK, fontWeight: 700 }}>
+            CHW review is locked until the Care Provider signs.
+          </div>
+          <div style={{ fontSize: 12, color: COLOR_INK_2, lineHeight: '17px' }}>
+            You'll get a notification the moment the plan is released. If this is urgent, ping the assigned
+            Provider via the sign-off queue.
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -175,13 +462,11 @@ function PlanHeader({
   patient,
   version,
   reviewState,
-  onCompareV3,
 }: {
   plan: CarePlan | undefined;
   patient: Patient | undefined;
   version: number;
   reviewState: PlanReview360Props['reviewState'];
-  onCompareV3: () => void;
 }): JSX.Element {
   const stateLabel =
     reviewState === 'submitted' ? 'AWAITING PROVIDER'
@@ -275,9 +560,6 @@ function PlanHeader({
 
       <div style={{ flex: 1 }} />
 
-      <HeaderButton onClick={onCompareV3} icon={<IconGitCompare size={14} />} disabled={version < 2}>
-        Compare to v{Math.max(1, version - 1)}
-      </HeaderButton>
       <HeaderButton onClick={() => undefined} icon={<IconPrinter size={14} />} disabled>
         Preview PDF
       </HeaderButton>
@@ -556,7 +838,7 @@ function ProblemsSection({ items }: { items: ReviewItemForView[] }): JSX.Element
     <section>
       <SectionTitle
         title="Action items"
-        subtitle="Tasks the care team commits to. Auto-pulled from triggers + manual; edit via CD-14 plan editing."
+        subtitle="Tasks the care team commits to. Auto-pulled from triggers + manual; edit via plan editing."
         right={
           <button
             type="button"
@@ -576,7 +858,7 @@ function ProblemsSection({ items }: { items: ReviewItemForView[] }): JSX.Element
               fontWeight: 600,
               cursor: 'not-allowed',
             }}
-            title="Add via /plan-edit (CD-14)"
+            title="Add via /plan-edit"
           >
             <IconPlus size={12} />
             Add action item
@@ -734,238 +1016,6 @@ function EmptyTab({ label }: { label: string }): JSX.Element {
     </div>
   );
 }
-
-/* ─────── Right rail ─────── */
-
-function PlanRightRail({
-  version,
-  patient,
-  alreadyAcked,
-  canSignAsProvider,
-  acking,
-  signatureDataUrl,
-  setSignatureDataUrl,
-  ackThisPlan,
-}: {
-  version: number;
-  patient: Patient | undefined;
-  alreadyAcked: boolean;
-  canSignAsProvider: boolean;
-  acking: boolean;
-  signatureDataUrl: string | null;
-  setSignatureDataUrl: (data: string | null) => void;
-  ackThisPlan: () => void;
-}): JSX.Element {
-  return (
-    <aside
-      style={{
-        width: 340,
-        flexShrink: 0,
-        borderLeft: `1px solid ${COLOR_BORDER}`,
-        background: '#fff',
-        padding: '20px 18px 28px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        overflowY: 'auto',
-      }}
-    >
-      <Eyebrow>Signatures · v{version}</Eyebrow>
-
-      {/* CHW review (for the demo, the active "ready" card maps to the
-          current actor: a Provider with review.signoff or a CHW reviewing
-          before passing to Provider). We show this card with the inline
-          signature pad when the active role can sign. */}
-      <SignatureCard
-        role="CHW review"
-        name="Awaiting CHW attest"
-        status={alreadyAcked ? 'done' : 'ready'}
-        detail={alreadyAcked ? 'Signature recorded — see Communication audit log.' : 'Reviewed all sections · ready to attest'}
-      >
-        {!alreadyAcked && canSignAsProvider && (
-          <>
-            <SignaturePad onChange={setSignatureDataUrl} label="Care Provider signature" />
-            <button
-              type="button"
-              onClick={ackThisPlan}
-              disabled={acking || !signatureDataUrl}
-              style={{
-                marginTop: 10,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                height: 36,
-                width: '100%',
-                borderRadius: 10,
-                border: 'none',
-                background: signatureDataUrl ? COLOR_BRAND : COLOR_BORDER,
-                color: '#fff',
-                fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: signatureDataUrl ? 'pointer' : 'not-allowed',
-              }}
-            >
-              <IconSignature size={14} /> {acking ? 'Saving…' : 'Attest & sign'}
-            </button>
-          </>
-        )}
-      </SignatureCard>
-
-      <SignatureCard
-        role="Provider co-sign"
-        name="Awaiting Provider"
-        status="queued"
-        detail="Will route via secure portal · 24h SLA"
-      >
-        <SignatureCardButton onClick={() => undefined} disabled icon={<IconMailForward size={14} />}>
-          Send for co-sign
-        </SignatureCardButton>
-      </SignatureCard>
-
-      <SignatureCard
-        role="Member acknowledgement"
-        name={patient ? memberIdentity(patient, undefined) : 'Member'}
-        status="pending-method"
-        detail="On-tablet now · or SMS link · or print &amp; scan"
-      >
-        <SignatureCardButton onClick={() => undefined} disabled icon={<IconSend size={14} />}>
-          Choose method
-        </SignatureCardButton>
-      </SignatureCard>
-
-      {/* 30-day warning */}
-      <div
-        style={{
-          background: COLOR_WARNING_TINT,
-          border: `1px solid ${COLOR_WARNING_BORDER}`,
-          borderRadius: 11,
-          padding: '12px 14px',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: COLOR_WARNING_FG,
-            marginBottom: 6,
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <IconAlertTriangle size={11} />
-          Member must sign within 30 days
-        </div>
-        <div style={{ fontSize: 12, color: COLOR_INK, lineHeight: '17px' }}>
-          Auto-reminder fires at day 14, 21, 28 if the member hasn&apos;t signed.
-        </div>
-      </div>
-
-      {/* Document store */}
-      <div style={{ background: '#fff', border: `1px solid ${COLOR_BORDER}`, borderRadius: 11, padding: '12px 14px' }}>
-        <Eyebrow style={{ marginBottom: 8 }}>Document store</Eyebrow>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: COLOR_INK }}>
-          <IconFileText size={14} color={COLOR_FG_MUTE} />
-          <span style={{ flex: 1 }}>POC-v{Math.max(1, version - 1)}.pdf</span>
-          <Chip tone="info" small>
-            {version > 1 ? 'Signed' : 'Pending'}
-          </Chip>
-        </div>
-        <div style={{ fontSize: 10, color: COLOR_FG_HELP, marginTop: 4 }}>
-          v{version} PDF generates after sign · S3-backed · audit trail attached
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function SignatureCard({
-  role,
-  name,
-  status,
-  detail,
-  children,
-}: {
-  role: string;
-  name: string;
-  status: 'ready' | 'queued' | 'pending-method' | 'done';
-  detail: string;
-  children?: ReactNode;
-}): JSX.Element {
-  const cfg =
-    status === 'ready'
-      ? { border: COLOR_BRAND_BORDER, dot: COLOR_BRAND }
-      : status === 'queued'
-      ? { border: COLOR_BORDER, dot: COLOR_FG_HELP }
-      : status === 'pending-method'
-      ? { border: COLOR_BORDER, dot: COLOR_INFO_DOT }
-      : { border: COLOR_TEAL_DOT, dot: COLOR_TEAL_DOT };
-
-  return (
-    <div
-      style={{
-        background: '#fff',
-        border: `1px solid ${cfg.border}`,
-        borderRadius: 11,
-        padding: '12px 14px',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <span style={{ width: 7, height: 7, borderRadius: 4, background: cfg.dot }} />
-        <Eyebrow>{role}</Eyebrow>
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: COLOR_INK }}>{name}</div>
-      <div style={{ fontSize: 11, color: COLOR_FG_MUTE, marginTop: 4, lineHeight: '15px' }}>{detail}</div>
-      {children}
-    </div>
-  );
-}
-
-function SignatureCardButton({
-  onClick,
-  icon,
-  disabled,
-  children,
-}: {
-  onClick: () => void;
-  icon: ReactNode;
-  disabled?: boolean;
-  children: ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      style={{
-        marginTop: 10,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        height: 34,
-        width: '100%',
-        borderRadius: 10,
-        border: `1px solid ${COLOR_BORDER}`,
-        background: '#fff',
-        color: disabled ? COLOR_FG_HELP : COLOR_INK_2,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.7 : 1,
-      }}
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
-
 /* ─────── Shared atoms ─────── */
 
 function Chip({

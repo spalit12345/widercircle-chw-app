@@ -293,7 +293,7 @@ export function ReferralsPage(): JSX.Element {
               textTransform: 'uppercase',
             }}
           >
-            CM-05 · SDoH Referrals
+            SDoH Referrals
           </span>
           <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
           <span

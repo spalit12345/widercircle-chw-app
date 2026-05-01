@@ -551,7 +551,7 @@ export function SDoHAssessmentPage(): JSX.Element {
               textTransform: 'uppercase',
             }}
           >
-            CD-19 · SDoH Assessment
+            SDoH Assessment
           </span>
           <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
           <span
@@ -602,7 +602,7 @@ export function SDoHAssessmentPage(): JSX.Element {
 
         <Alert color="blue" variant="light" icon={<IconHeartHandshake size={16} />}>
           <Text size="sm">
-            <b>Preferred path:</b> send the assessment link to the member by SMS so they fill it on their phone (CD-19 §3.1). CHW-fill below is the fallback when the member is unreachable.
+            <b>Preferred path:</b> send the assessment link to the member by SMS so they fill it on their phone. CHW-fill below is the fallback when the member is unreachable.
           </Text>
         </Alert>
 

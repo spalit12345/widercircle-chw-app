@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 import { Title } from '@mantine/core';
-import { Logo, SignInForm } from '@medplum/react';
+import { SignInForm } from '@medplum/react';
 import type { JSX } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 
@@ -10,15 +10,17 @@ export function SignInPage(): JSX.Element {
   const [searchParams] = useSearchParams();
   return (
     <SignInForm
-      // Configure according to your settings
-      googleClientId="921088377005-3j1sa10vr6hj86jgmdfh2l53v3mp7lfi.apps.googleusercontent.com"
       onSuccess={() => navigate('/')?.catch(console.error)}
       projectId={searchParams.get('project') || undefined}
       login={searchParams.get('login') || undefined}
     >
-      <Logo size={32} />
-      <Title order={3} py="lg">
-        Sign in to Provider
+      <img
+        src="/wc-v2/wc-favicon.svg"
+        alt="Wider Circle"
+        style={{ width: 56, height: 56, display: 'block', marginInline: 'auto' }}
+      />
+      <Title order={3} py="lg" ta="center">
+        Sign in to Care &amp; Case Management System
       </Title>
     </SignInForm>
   );

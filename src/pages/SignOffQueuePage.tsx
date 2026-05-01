@@ -97,7 +97,7 @@ export function SignOffQueuePage(): JSX.Element {
               textTransform: 'uppercase',
             }}
           >
-            CD-09 · Provider sign-off queue
+            Provider sign-off queue
           </span>
           <span style={{ width: 1, height: 18, background: 'var(--wc-base-200, #E2E6E9)' }} />
           <span
