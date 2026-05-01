@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
-import { Badge, Card, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Select, Stack, Text, Title } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { Consent, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
+import { IconArrowBackUp, IconClipboardList } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import { ConsentBlock } from '../components/consent/ConsentBlock';
 
 export const CONSENT_SCRIPT_VERSION = 'telehealth-chi-v1';
@@ -117,11 +119,29 @@ export const consentMethod = (consent: Consent | undefined): 'esig' | 'verbal' |
   return 'unknown';
 };
 
+/**
+ * Only allow internal app paths as `?return=` targets so a malicious link
+ * can't bounce a user to an external site after consent capture.
+ */
+const sanitizeReturnUrl = (raw: string | null): string | null => {
+  if (!raw) return null;
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+  return raw;
+};
+
 export function ConsentCapturePage(): JSX.Element {
   const medplum = useMedplum();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Deep-link support: `/consent?patient=<id>` pre-selects the member.
+  // `?return=<path>` makes the page redirect back to that path once a
+  // telehealth-chi consent is captured (used by the SDoH gate).
+  const initialPatient = searchParams.get('patient') ?? '';
+  const returnUrl = sanitizeReturnUrl(searchParams.get('return'));
 
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [consents, setConsents] = useState<Consent[]>([]);
   const [historyKey, setHistoryKey] = useState(0);
 
@@ -129,18 +149,25 @@ export function ConsentCapturePage(): JSX.Element {
 
   const loadPatients = useCallback(async () => {
     try {
-      const results = await medplum.searchResources('Patient', '_count=50&_sort=-_lastUpdated');
-      setPatients(
-        results.map((p: Patient) => ({
-          value: p.id ?? '',
-          label:
-            `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient',
-        }))
-      );
+      const patientLabel = (p: Patient): string =>
+        `${p.name?.[0]?.given?.[0] ?? ''} ${p.name?.[0]?.family ?? ''}`.trim() || 'Unnamed patient';
+      const [results, deepLinked] = await Promise.all([
+        medplum.searchResources('Patient', '_count=50&_sort=-_lastUpdated'),
+        // Make sure the deep-linked patient is in the dropdown even if they
+        // aren't in the recent-50 list.
+        initialPatient
+          ? medplum.readResource('Patient', initialPatient).catch(() => undefined)
+          : Promise.resolve(undefined),
+      ]);
+      const list = results.map((p: Patient) => ({ value: p.id ?? '', label: patientLabel(p) }));
+      if (deepLinked?.id && !list.some((p) => p.value === deepLinked.id)) {
+        list.unshift({ value: deepLinked.id, label: patientLabel(deepLinked) });
+      }
+      setPatients(list);
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     }
-  }, [medplum]);
+  }, [medplum, initialPatient]);
 
   const loadHistory = useCallback(
     async (patientId: string) => {
@@ -192,6 +219,29 @@ export function ConsentCapturePage(): JSX.Element {
           </Text>
         </Stack>
 
+        {/* Round-trip banner — surfaces when this page was opened from the
+            SDoH gate. Capture the telehealth/CHI consent below and the page
+            auto-redirects back; the "Back" button is the manual fallback. */}
+        {returnUrl && (
+          <Alert color="blue" variant="light" icon={<IconClipboardList size={16} />}>
+            <Group justify="space-between" wrap="nowrap" align="center">
+              <Text size="sm">
+                Capturing telehealth/CHI consent will return you to the assessment in progress with all
+                answered questions intact.
+              </Text>
+              <Button
+                size="xs"
+                variant="light"
+                color="blue"
+                leftSection={<IconArrowBackUp size={14} />}
+                onClick={() => navigate(returnUrl)}
+              >
+                Back to assessment
+              </Button>
+            </Group>
+          </Alert>
+        )}
+
         <Card withBorder radius="md" padding="md">
           <Stack gap="md">
             <Select
@@ -210,7 +260,14 @@ export function ConsentCapturePage(): JSX.Element {
           patientId={selectedPatient || undefined}
           patientLabel={selectedPatientLabel}
           config={TELEHEALTH_CHI_CONSENT_CONFIG}
-          onCaptured={() => setHistoryKey((k) => k + 1)}
+          onCaptured={() => {
+            setHistoryKey((k) => k + 1);
+            // If we got here from the SDoH gate, hop back to the assessment.
+            if (returnUrl) {
+              showNotification({ color: 'green', message: 'Consent captured · returning to assessment' });
+              navigate(returnUrl);
+            }
+          }}
         />
 
         <ConsentBlock

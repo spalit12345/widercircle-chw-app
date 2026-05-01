@@ -1,177 +1,25 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 import { Alert, Badge, Center, Group, Loader, Progress, Stack, Table, Text, Title } from '@mantine/core';
-import { showNotification } from '@mantine/notifications';
-import { normalizeErrorString } from '@medplum/core';
-import type { Encounter, Observation, Patient } from '@medplum/fhirtypes';
-import { Document, useMedplum } from '@medplum/react';
+import { Document } from '@medplum/react';
 import { IconAlertTriangle, IconClock } from '@tabler/icons-react';
 import type { JSX } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import {
-  getMonthRange,
-  getProgressColor,
-  getStatusLabel,
-} from '../billing/billing-utils';
-import { getThresholdFromCptCodes, suggestCptFromConfig, useBillingConfig } from '../billing/useBillingConfig';
+import { getMonthRange, getProgressColor, getStatusLabel } from '../billing/billing-utils';
+import { useCcmMonthlyTotals } from '../billing/useCcmMonthlyTotals';
 import { useTimer } from '../timer/TimerContext';
 
-interface PatientBillingRow {
-  patientId: string;
-  patientName: string;
-  program: string;
-  totalMinutes: number;
-  threshold: number;
-  suggestedCpt: string;
-  progress: number;
-  entryCount: number;
-}
-
 export function BillingDashboardPage(): JSX.Element {
-  const medplum = useMedplum();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<PatientBillingRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { cptCodes } = useBillingConfig();
-
+  const { rows, summary, loading } = useCcmMonthlyTotals();
   const { activeTimer, elapsed } = useTimer();
+  const monthLabel = useMemo(() => getMonthRange().label, []);
 
-  // Month range — sent as full UTC instants computed from the LOCAL month
-  // boundary, not naked date strings. Naked dates (`lt2026-05-01`) get treated
-  // by FHIR as `< 2026-05-01T00:00:00Z`, which drops any Observation logged
-  // late on the last local day (its effectivePeriod is already in the next
-  // UTC day). Using ISO instants keeps the local month aligned with the
-  // search range across timezones.
-  const { monthStartIso, nextMonthStartIso, monthLabel } = useMemo(() => {
-    const { label } = getMonthRange();
-    const now = new Date();
-    const monthStartLocal = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const nextMonthStartLocal = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
-    return {
-      monthStartIso: monthStartLocal.toISOString(),
-      nextMonthStartIso: nextMonthStartLocal.toISOString(),
-      monthLabel: label,
-    };
-  }, []);
-
-  const fetchData = useCallback(async () => {
-    try {
-      // Pull patients, billable Encounters, and CCM time-tracking Observations
-      // for the month in parallel. Observations come from the global timer
-      // (TimerContext.stopTimer), Encounters come from closed telehealth visits.
-      const [patients, encounters, ccmObservations] = await Promise.all([
-        medplum.searchResources('Patient', '_sort=-_lastUpdated'),
-        medplum.searchResources('Encounter', `date=ge${monthStartIso}&date=lt${nextMonthStartIso}&_sort=-date`),
-        medplum.searchResources(
-          'Observation',
-          `code=ccm-minutes&date=ge${monthStartIso}&date=lt${nextMonthStartIso}&_count=500&_sort=-date`
-        ),
-      ]);
-
-      // Aggregate by patient AND program (dual-enrolled have separate floors).
-      const patientProgramMinutes: Record<string, Record<string, { minutes: number; count: number }>> = {};
-
-      const bump = (patId: string, program: string, minutes: number): void => {
-        if (!patId || minutes <= 0) return;
-        if (!patientProgramMinutes[patId]) {
-          patientProgramMinutes[patId] = {};
-        }
-        if (!patientProgramMinutes[patId][program]) {
-          patientProgramMinutes[patId][program] = { minutes: 0, count: 0 };
-        }
-        patientProgramMinutes[patId][program].minutes += minutes;
-        patientProgramMinutes[patId][program].count += 1;
-      };
-
-      for (const enc of encounters as Encounter[]) {
-        const patId = enc.subject?.reference?.replace('Patient/', '') ?? '';
-        const minutes = enc.length?.value ?? 0;
-        const prog = enc.serviceType?.coding?.[0]?.code ?? 'CHI';
-        bump(patId, prog, minutes);
-      }
-
-      // ccm-minutes Observations carry minutes in valueQuantity. They don't
-      // have an explicit program code, so they bucket into CHI by default —
-      // matches the rest of the dashboard's CHI-first assumption.
-      for (const obs of ccmObservations as Observation[]) {
-        const patId = obs.subject?.reference?.replace('Patient/', '') ?? '';
-        const minutes = obs.valueQuantity?.value ?? 0;
-        bump(patId, 'CHI', minutes);
-      }
-
-      // Build rows — one per patient per program (dual-enrolled get multiple rows)
-      const billingRows: PatientBillingRow[] = [];
-      for (const patient of patients as Patient[]) {
-        const patId = patient.id ?? '';
-        const name = patient.name?.[0];
-        const displayName = name ? `${name.given?.[0] ?? ''} ${name.family ?? ''}`.trim() : patId;
-        const programData = patientProgramMinutes[patId] ?? { CHI: { minutes: 0, count: 0 } };
-        const programKeys = Object.keys(programData);
-        if (programKeys.length === 0) {
-          programKeys.push('CHI');
-        }
-
-        for (const prog of programKeys) {
-          const data = programData[prog] ?? { minutes: 0, count: 0 };
-          const threshold = getThresholdFromCptCodes(cptCodes);
-          const progress = threshold > 0 ? Math.min(100, Math.round((data.minutes / threshold) * 100)) : 0;
-          const cpt = suggestCptFromConfig(data.minutes, cptCodes, prog);
-
-          billingRows.push({
-            patientId: patId,
-            patientName: displayName,
-            program: prog,
-            totalMinutes: data.minutes,
-          threshold,
-          suggestedCpt: cpt || '—',
-          progress,
-          entryCount: data.count,
-        });
-        }
-      }
-
-      // Sort: approaching threshold first (70-99%), then met (100%+), then below
-      billingRows.sort((a, b) => {
-        const aApproaching = a.progress >= 70 && a.progress < 100;
-        const bApproaching = b.progress >= 70 && b.progress < 100;
-        if (aApproaching && !bApproaching) {
-          return -1;
-        }
-        if (!aApproaching && bApproaching) {
-          return 1;
-        }
-        return b.progress - a.progress;
-      });
-
-      setRows(billingRows);
-    } catch (err) {
-      showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
-    } finally {
-      setLoading(false);
-    }
-  }, [medplum, monthStartIso, nextMonthStartIso, cptCodes]);
-
-  useEffect(() => {
-    fetchData().catch(console.error);
-  }, [fetchData]);
-
-  // Re-fetch when the global timer transitions from "running" to null —
-  // i.e. a timer was just stopped (committed to FHIR), so the dashboard
-  // should pick up the new Observation immediately.
-  const wasRunningRef = useRef(false);
-  useEffect(() => {
-    if (wasRunningRef.current && !activeTimer) {
-      fetchData().catch(console.error);
-    }
-    wasRunningRef.current = !!activeTimer;
-  }, [activeTimer, fetchData]);
-
-  // Stats use row counts (including dual-enrolled as separate rows — each program is a billing unit)
-  const totalRows = rows.length;
-  const metThreshold = rows.filter((r) => r.progress >= 100).length;
-  const approaching = rows.filter((r) => r.progress >= 70 && r.progress < 100).length;
-  const below = totalRows - metThreshold - approaching;
+  const totalRows = summary.totalRows;
+  const metThreshold = summary.metCount;
+  const approaching = summary.approachingCount;
+  const below = summary.belowCount;
 
   // Mid-month revenue protection
   const now = useMemo(() => new Date(), []);
@@ -291,10 +139,10 @@ export function BillingDashboardPage(): JSX.Element {
                     role="link"
                     tabIndex={0}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/Patient/${row.patientId}/billing`)}
+                    onClick={() => navigate(`/members/${row.patientId}`)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        navigate(`/Patient/${row.patientId}/billing`);
+                        navigate(`/members/${row.patientId}`);
                       }
                     }}
                   >

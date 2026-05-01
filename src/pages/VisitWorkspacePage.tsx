@@ -21,7 +21,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString, resolveId } from '@medplum/core';
-import type { Consent, Encounter, Patient } from '@medplum/fhirtypes';
+import type { Consent, Encounter, Patient, QuestionnaireResponse } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
 import {
   IconAlertTriangle,
@@ -114,6 +114,9 @@ export function VisitWorkspacePage(): JSX.Element {
   const [patient, setPatient] = useState<Patient | undefined>();
   const [consentOnFile, setConsentOnFile] = useState<boolean>(false);
   const [recordingConsent, setRecordingConsent] = useState<boolean>(false);
+  const [sdohHistory, setSdohHistory] = useState<QuestionnaireResponse[]>([]);
+  const [pastVisits, setPastVisits] = useState<Encounter[]>([]);
+  const [openSdohResponse, setOpenSdohResponse] = useState<QuestionnaireResponse | undefined>();
   const [recording, setRecording] = useState<boolean>(false);
   const [recordingPromptOpen, { open: openRecordingPrompt, close: closeRecordingPrompt }] = useDisclosure(false);
   const [recordingScriptRead, setRecordingScriptRead] = useState<boolean>(false);
@@ -152,18 +155,45 @@ export function VisitWorkspacePage(): JSX.Element {
       const enc = await medplum.readResource('Encounter', encounterId);
       setEncounter(enc);
       const patientId = resolveId(enc.subject);
-      const [pat, consents] = await Promise.all([
+
+      // Pull patient context, consents, and the visit-context history
+      // (SDoH assessments + past encounters) in parallel. The visit-context
+      // surfaces are read-only context for the Provider on the call.
+      const [pat, consents, sdoh, prior] = await Promise.all([
         patientId ? medplum.readResource('Patient', patientId).catch(() => undefined) : Promise.resolve(undefined),
         patientId
           ? medplum
               .searchResources('Consent', `patient=Patient/${patientId}&_sort=-_lastUpdated&_count=20`)
               .catch(() => [] as Consent[])
           : Promise.resolve([] as Consent[]),
+        patientId
+          ? medplum
+              .searchResources(
+                'QuestionnaireResponse',
+                `subject=Patient/${patientId}&questionnaire=https://widercircle.com/fhir/Questionnaire/sdoh-prapare-v1&_sort=-authored&_count=20`
+              )
+              .catch(() => [] as QuestionnaireResponse[])
+          : Promise.resolve([] as QuestionnaireResponse[]),
+        patientId
+          ? medplum
+              .searchResources(
+                'Encounter',
+                `subject=Patient/${patientId}&status=finished&_sort=-date&_count=20`
+              )
+              .catch(() => [] as Encounter[])
+          : Promise.resolve([] as Encounter[]),
       ]);
       setPatient(pat);
       const ok = isConsentValid(consents);
       setConsentOnFile(ok);
       setRecordingConsent(isRecordingConsentValid(consents));
+      setSdohHistory(sdoh);
+      // Drop the current encounter from the past-visits list (the call we're
+      // on isn't a "prior" encounter) and keep only ones that landed before
+      // it started.
+      setPastVisits(
+        prior.filter((e) => e.id && e.id !== encounterId)
+      );
       if (enc.status === 'finished') {
         setPhase('ended');
         setStartedAt(enc.period?.start ? new Date(enc.period.start).getTime() : undefined);
@@ -695,6 +725,143 @@ export function VisitWorkspacePage(): JSX.Element {
             </Card>
           </Grid.Col>
         </Grid>
+
+        {/* Visit context — read-only history surfaces for the Provider on
+            the call: prior SDoH screeners and prior closed encounters. */}
+        <Grid gutter="md">
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Card withBorder radius="md" padding="md" style={{ height: '100%' }}>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Title order={5}>Recent SDoH assessments</Title>
+                  <Badge variant="light" color="grape">{sdohHistory.length}</Badge>
+                </Group>
+                {sdohHistory.length === 0 ? (
+                  <Text size="xs" c="dimmed">
+                    No SDoH assessments on file for this member yet.
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    {sdohHistory.slice(0, 5).map((qr) => {
+                      const cases = (qr.extension ?? [])
+                        .filter((e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case')
+                        .map((e) => e.valueString)
+                        .filter((s): s is string => Boolean(s));
+                      return (
+                        <Group
+                          key={qr.id}
+                          justify="space-between"
+                          p="xs"
+                          wrap="nowrap"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setOpenSdohResponse(qr)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setOpenSdohResponse(qr);
+                            }
+                          }}
+                          style={{
+                            borderLeft: '3px solid var(--mantine-color-grape-5)',
+                            paddingLeft: 8,
+                            cursor: 'pointer',
+                            borderRadius: 6,
+                            transition: 'background .12s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--mantine-color-gray-0)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                            <Text size="sm" fw={600}>
+                              {cases.length === 0
+                                ? 'Screener · no risks triggered'
+                                : `${cases.length} risk${cases.length === 1 ? '' : 's'} triggered`}
+                            </Text>
+                            {cases.length > 0 && (
+                              <Text size="xs" c="dimmed" lineClamp={2}>
+                                {cases.join(' · ')}
+                              </Text>
+                            )}
+                            <Text size="xs" c="dimmed">
+                              {qr.author?.display ?? 'Unknown author'}
+                            </Text>
+                          </Stack>
+                          <Text size="xs" c="dimmed" ff="monospace">
+                            {qr.authored ? formatDateTime(qr.authored) : '—'}
+                          </Text>
+                        </Group>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, md: 6 }}>
+            <Card withBorder radius="md" padding="md" style={{ height: '100%' }}>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Title order={5}>Recent visits</Title>
+                  <Badge variant="light">{pastVisits.length}</Badge>
+                </Group>
+                {pastVisits.length === 0 ? (
+                  <Text size="xs" c="dimmed">
+                    No prior closed visits on file for this member.
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    {pastVisits.slice(0, 5).map((e) => {
+                      const reason = e.reasonCode?.[0]?.text ?? e.type?.[0]?.text ?? e.type?.[0]?.coding?.[0]?.display;
+                      const program = e.serviceType?.coding?.[0]?.display ?? e.serviceType?.coding?.[0]?.code;
+                      const minutes = e.length?.value;
+                      return (
+                        <Group
+                          key={e.id}
+                          justify="space-between"
+                          p="xs"
+                          wrap="nowrap"
+                          style={{ borderLeft: '3px solid var(--mantine-color-blue-5)', paddingLeft: 8 }}
+                        >
+                          <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                            <Text size="sm" fw={600} lineClamp={1}>
+                              {reason ?? 'Visit'}
+                            </Text>
+                            <Group gap={6}>
+                              {program && (
+                                <Badge size="xs" variant="light">
+                                  {program}
+                                </Badge>
+                              )}
+                              {typeof minutes === 'number' && (
+                                <Text size="xs" c="dimmed" ff="monospace">
+                                  {minutes} min
+                                </Text>
+                              )}
+                              {e.participant?.[0]?.individual?.display && (
+                                <Text size="xs" c="dimmed">
+                                  {e.participant[0].individual.display}
+                                </Text>
+                              )}
+                            </Group>
+                          </Stack>
+                          <Text size="xs" c="dimmed" ff="monospace">
+                            {e.period?.start ? formatDateTime(e.period.start) : '—'}
+                          </Text>
+                        </Group>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          </Grid.Col>
+        </Grid>
       </Stack>
 
       {/* CD-08 AC-4: encounter close requires an active Plan of Care. The CHW
@@ -777,6 +944,116 @@ export function VisitWorkspacePage(): JSX.Element {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* SDoH detail — full Q&A from a prior assessment, opened from the
+          "Recent SDoH assessments" panel above. Read-only. */}
+      <Modal
+        opened={!!openSdohResponse}
+        onClose={() => setOpenSdohResponse(undefined)}
+        title="SDoH assessment"
+        size="lg"
+        centered
+      >
+        {openSdohResponse && (
+          <Stack gap="md">
+            <Group gap="xs" wrap="wrap">
+              <Badge variant="light" color="grape">
+                {openSdohResponse.author?.display ?? 'Unknown author'}
+              </Badge>
+              <Badge variant="light">
+                {openSdohResponse.authored ? formatDateTime(openSdohResponse.authored) : '—'}
+              </Badge>
+              {(() => {
+                const cases = (openSdohResponse.extension ?? [])
+                  .filter((e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case')
+                  .map((e) => e.valueString)
+                  .filter((s): s is string => Boolean(s));
+                if (cases.length === 0) {
+                  return <Badge variant="light" color="gray">No risks triggered</Badge>;
+                }
+                return (
+                  <Badge variant="light" color="yellow">
+                    {cases.length} risk{cases.length === 1 ? '' : 's'} triggered
+                  </Badge>
+                );
+              })()}
+            </Group>
+
+            {(() => {
+              const cases = (openSdohResponse.extension ?? [])
+                .filter((e) => e.url === 'https://widercircle.com/fhir/StructureDefinition/sdoh-triggered-case')
+                .map((e) => e.valueString)
+                .filter((s): s is string => Boolean(s));
+              if (cases.length === 0) return null;
+              return (
+                <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />} title="Triggered cases">
+                  <Stack gap={2}>
+                    {cases.map((c) => (
+                      <Text key={c} size="xs" ff="monospace">
+                        • {c}
+                      </Text>
+                    ))}
+                  </Stack>
+                </Alert>
+              );
+            })()}
+
+            <Stack gap="md">
+              {(openSdohResponse.item ?? []).map((section) => (
+                <Card key={section.linkId ?? section.text} withBorder radius="md" padding="md">
+                  <Stack gap="sm">
+                    <Text fw={700} size="sm">
+                      {section.text ?? section.linkId}
+                    </Text>
+                    {(section.item ?? []).length === 0 ? (
+                      <Text size="xs" c="dimmed">
+                        No questions answered in this section.
+                      </Text>
+                    ) : (
+                      <Stack gap="xs">
+                        {(section.item ?? []).map((q) => {
+                          const answers = (q.answer ?? [])
+                            .map((a) => a.valueString ?? a.valueCoding?.display ?? a.valueCoding?.code)
+                            .filter((v): v is string => Boolean(v));
+                          return (
+                            <Stack
+                              key={q.linkId ?? q.text}
+                              gap={2}
+                              p="xs"
+                              style={{
+                                borderLeft: '3px solid var(--mantine-color-grape-3)',
+                                paddingLeft: 10,
+                              }}
+                            >
+                              <Text size="xs" c="dimmed">
+                                {q.text ?? q.linkId}
+                              </Text>
+                              {answers.length === 0 ? (
+                                <Text size="sm" c="dimmed" fs="italic">
+                                  Not answered
+                                </Text>
+                              ) : (
+                                <Text size="sm" fw={600}>
+                                  {answers.join(' · ')}
+                                </Text>
+                              )}
+                            </Stack>
+                          );
+                        })}
+                      </Stack>
+                    )}
+                  </Stack>
+                </Card>
+              ))}
+              {(openSdohResponse.item ?? []).length === 0 && (
+                <Text size="sm" c="dimmed">
+                  This assessment has no recorded answers.
+                </Text>
+              )}
+            </Stack>
+          </Stack>
+        )}
       </Modal>
     </Document>
   );

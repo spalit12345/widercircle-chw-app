@@ -76,8 +76,17 @@
         "gender": "female",
         "birthDate": "1958-03-15",
         "telecom": [
-          { "system": "phone", "value": "555-1001", "use": "home" },
+          { "system": "phone", "value": "(213) 555-1001", "use": "home" },
           { "system": "email", "value": "maria.garcia@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "es", "display": "Spanish" }],
+              "text": "Spanish"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["456 Oak Street"], "city": "Los Angeles", "state": "CA", "postalCode": "90012" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-maria" }],
@@ -94,8 +103,17 @@
         "gender": "male",
         "birthDate": "1972-07-22",
         "telecom": [
-          { "system": "phone", "value": "555-1002", "use": "home" },
+          { "system": "phone", "value": "(213) 555-1002", "use": "home" },
           { "system": "email", "value": "james.wilson@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "en", "display": "English" }],
+              "text": "English"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["789 Pine Avenue"], "city": "Los Angeles", "state": "CA", "postalCode": "90015" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-maria" }],
@@ -112,8 +130,17 @@
         "gender": "male",
         "birthDate": "1965-11-08",
         "telecom": [
-          { "system": "phone", "value": "555-1003", "use": "home" },
+          { "system": "phone", "value": "(213) 555-1003", "use": "home" },
           { "system": "email", "value": "robert.chen@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "en", "display": "English" }],
+              "text": "English"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["321 Elm Drive"], "city": "Los Angeles", "state": "CA", "postalCode": "90020" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-james" }],
@@ -130,8 +157,17 @@
         "gender": "female",
         "birthDate": "1950-01-30",
         "telecom": [
-          { "system": "phone", "value": "555-1004", "use": "home" },
+          { "system": "phone", "value": "(213) 555-1004", "use": "home" },
           { "system": "email", "value": "dorothy.johnson@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "en", "display": "English" }],
+              "text": "English"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["555 Maple Lane"], "city": "Los Angeles", "state": "CA", "postalCode": "90025" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-james" }],
@@ -148,8 +184,17 @@
         "gender": "female",
         "birthDate": "1968-09-12",
         "telecom": [
-          { "system": "phone", "value": "555-1005", "use": "mobile" },
+          { "system": "phone", "value": "(213) 555-1005", "use": "mobile" },
           { "system": "email", "value": "linda.thompson@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "en", "display": "English" }],
+              "text": "English"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["222 Birch Road"], "city": "Los Angeles", "state": "CA", "postalCode": "90030" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-maria" }],
@@ -166,8 +211,17 @@
         "gender": "male",
         "birthDate": "1980-04-05",
         "telecom": [
-          { "system": "phone", "value": "555-1006", "use": "mobile" },
+          { "system": "phone", "value": "(213) 555-1006", "use": "mobile" },
           { "system": "email", "value": "marcus.davis@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "en", "display": "English" }],
+              "text": "English"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["888 Cedar Court"], "city": "Los Angeles", "state": "CA", "postalCode": "90035" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-james" }],
@@ -184,8 +238,17 @@
         "gender": "female",
         "birthDate": "1975-12-20",
         "telecom": [
-          { "system": "phone", "value": "555-1007", "use": "home" },
+          { "system": "phone", "value": "(213) 555-1007", "use": "home" },
           { "system": "email", "value": "rosa.martinez@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "es", "display": "Spanish" }],
+              "text": "Spanish"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["444 Walnut Street"], "city": "Los Angeles", "state": "CA", "postalCode": "90040" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-maria" }],
@@ -202,8 +265,17 @@
         "gender": "male",
         "birthDate": "1962-06-18",
         "telecom": [
-          { "system": "phone", "value": "555-1008", "use": "home" },
+          { "system": "phone", "value": "(213) 555-1008", "use": "home" },
           { "system": "email", "value": "tran.nguyen@email.com", "use": "home" }
+        ],
+        "communication": [
+          {
+            "language": {
+              "coding": [{ "system": "urn:ietf:bcp:47", "code": "en", "display": "English" }],
+              "text": "English"
+            },
+            "preferred": true
+          }
         ],
         "address": [{ "use": "home", "line": ["999 Spruce Boulevard"], "city": "Los Angeles", "state": "CA", "postalCode": "90045" }],
         "generalPractitioner": [{ "reference": "urn:uuid:practitioner-chw-james" }],

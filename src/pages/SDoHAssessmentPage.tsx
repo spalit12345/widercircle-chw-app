@@ -21,13 +21,14 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
-import type { Patient, QuestionnaireResponse, QuestionnaireResponseItem, Task } from '@medplum/fhirtypes';
+import type { Consent, Patient, QuestionnaireResponse, QuestionnaireResponseItem, Task } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconAlertTriangle, IconCheck, IconCopy, IconHeartHandshake, IconSend } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconCopy, IconHeartHandshake, IconLock, IconSend } from '@tabler/icons-react';
 import type { JSX } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { emitAudit } from '../utils/audit';
+import { CONSENT_CATEGORY_CODE, evaluateConsentStatus } from './ConsentCapturePage';
 
 // CD-19 / CM-21 — SDoH-triggered Tasks must match the case-management coding
 // the member-profile "Open cases" card searches for (see MemberContextPage).
@@ -323,22 +324,77 @@ const buildQuestionnaireResponse = (
   };
 };
 
+// Draft persistence — the CHW may need to leave /sdoh to capture consent and
+// come back. Keep answers in sessionStorage so a refresh / cross-route trip
+// doesn't lose progress. Keyed per-patient so the CHW could conceivably hold
+// drafts for multiple members.
+const SDOH_DRAFT_KEY_PREFIX = 'wc_sdoh_draft_';
+
+interface SdohDraft {
+  answers: Answers;
+  startedAt: string;
+  updatedAt: string;
+}
+
+const draftKey = (patientId: string): string => `${SDOH_DRAFT_KEY_PREFIX}${patientId}`;
+
+const loadDraft = (patientId: string): SdohDraft | null => {
+  if (!patientId) return null;
+  try {
+    const raw = sessionStorage.getItem(draftKey(patientId));
+    if (!raw) return null;
+    return JSON.parse(raw) as SdohDraft;
+  } catch {
+    return null;
+  }
+};
+
+const saveDraft = (patientId: string, draft: SdohDraft): void => {
+  try {
+    sessionStorage.setItem(draftKey(patientId), JSON.stringify(draft));
+  } catch {
+    // sessionStorage might be full or disabled — silently no-op.
+  }
+};
+
+const clearDraft = (patientId: string): void => {
+  try {
+    sessionStorage.removeItem(draftKey(patientId));
+  } catch {
+    // no-op
+  }
+};
+
 export function SDoHAssessmentPage(): JSX.Element {
   const medplum = useMedplum();
   const profile = medplum.getProfile();
+  const navigate = useNavigate();
 
   // Deep-link from member profile: `/sdoh?patient=<id>` pre-selects the
-  // member so the CHW lands on the assessment ready to administer.
+  // member so the CHW lands on the assessment ready to administer. When the
+  // CHW returns from /consent, we add `?resume=1` so this page hydrates from
+  // the persisted draft instead of the empty initial state.
   const [searchParams] = useSearchParams();
   const initialPatient = searchParams.get('patient') ?? '';
+  const shouldResume = searchParams.get('resume') === '1';
+
+  // If we should resume, hydrate answers from sessionStorage on first render
+  // so the user sees their previous progress immediately (no flash of empty).
+  const initialDraft = shouldResume && initialPatient ? loadDraft(initialPatient) : null;
 
   const [patients, setPatients] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedPatient, setSelectedPatient] = useState(initialPatient);
-  const [answers, setAnswers] = useState<Answers>({});
+  const [answers, setAnswers] = useState<Answers>(initialDraft?.answers ?? {});
   const [submitting, setSubmitting] = useState(false);
   const [submittedResponse, setSubmittedResponse] = useState<QuestionnaireResponse | undefined>();
-  const [startedAt] = useState<string>(() => new Date().toISOString());
+  const [startedAt, setStartedAt] = useState<string>(initialDraft?.startedAt ?? new Date().toISOString());
   const [shareOpened, { open: openShare, close: closeShare }] = useDisclosure(false);
+
+  // Telehealth/CHI consent gate: submission is blocked until a valid consent
+  // is on file for the selected member. We refetch the consent list whenever
+  // the selected patient changes; null = unchecked, true/false = settled.
+  const [consentValid, setConsentValid] = useState<boolean | null>(null);
+  const lastHydratedPatient = useRef<string | null>(initialDraft ? initialPatient : null);
 
   // CD-19 §3.1 — preferred path: patient fills on their phone via the public
   // link. CHW-fill is the fallback when the member isn't reachable. Both
@@ -380,6 +436,62 @@ export function SDoHAssessmentPage(): JSX.Element {
   const setAnswer = useCallback((qId: string, value: string | string[] | undefined) => {
     setAnswers((prev) => ({ ...prev, [qId]: value }));
   }, []);
+
+  // Fetch the patient's telehealth-chi Consent records and evaluate validity.
+  useEffect(() => {
+    if (!selectedPatient) {
+      setConsentValid(null);
+      return;
+    }
+    setConsentValid(null);
+    medplum
+      .searchResources('Consent', `patient=Patient/${selectedPatient}&_sort=-_lastUpdated&_count=20`)
+      .then((results: Consent[]) => {
+        const filtered = results.filter((c) =>
+          c.category?.some((cat) => cat.coding?.some((coding) => coding.code === CONSENT_CATEGORY_CODE))
+        );
+        setConsentValid(evaluateConsentStatus(filtered).state === 'on-file');
+      })
+      .catch(() => setConsentValid(false));
+  }, [medplum, selectedPatient]);
+
+  // When the user picks a different member from the dropdown, hydrate their
+  // draft (if any). Skip the initial selection — we already hydrated on mount.
+  useEffect(() => {
+    if (!selectedPatient) return;
+    if (lastHydratedPatient.current === selectedPatient) return;
+    lastHydratedPatient.current = selectedPatient;
+    const draft = loadDraft(selectedPatient);
+    if (draft) {
+      setAnswers(draft.answers);
+      setStartedAt(draft.startedAt);
+    } else {
+      setAnswers({});
+      setStartedAt(new Date().toISOString());
+    }
+  }, [selectedPatient]);
+
+  // Auto-save the draft on every answer change. Empty answer maps clear the
+  // draft so abandoned sessions don't linger.
+  useEffect(() => {
+    if (!selectedPatient) return;
+    const isEmpty = Object.values(answers).every((v) => v === undefined || (Array.isArray(v) && v.length === 0));
+    if (isEmpty) {
+      clearDraft(selectedPatient);
+      return;
+    }
+    saveDraft(selectedPatient, {
+      answers,
+      startedAt,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [selectedPatient, answers, startedAt]);
+
+  const goCaptureConsent = useCallback(() => {
+    if (!selectedPatient) return;
+    const returnUrl = `/sdoh?patient=${selectedPatient}&resume=1`;
+    navigate(`/consent?patient=${selectedPatient}&return=${encodeURIComponent(returnUrl)}`);
+  }, [navigate, selectedPatient]);
 
   const submit = useCallback(async () => {
     if (!selectedPatient) {
@@ -465,6 +577,7 @@ export function SDoHAssessmentPage(): JSX.Element {
             ? `Assessment submitted · ${created} of ${taskCreations.length} cases created (${failed} failed)`
             : `Assessment submitted · ${created} case${created === 1 ? '' : 's'} created in your queue`,
       });
+      clearDraft(selectedPatient);
     } catch (err) {
       showNotification({ color: 'red', message: normalizeErrorString(err), autoClose: false });
     } finally {
@@ -712,18 +825,45 @@ export function SDoHAssessmentPage(): JSX.Element {
                 </Stack>
               </Alert>
             )}
+
+            {/* Consent gate — submission requires a valid telehealth/CHI
+                consent on file. Banner explains the lock and offers a
+                one-click trip to /consent that round-trips back here with
+                the answered questions intact. */}
+            {selectedPatient && consentValid === false && (
+              <Alert color="red" variant="light" icon={<IconLock size={16} />} title="Consent required to submit">
+                <Stack gap="xs">
+                  <Text size="sm">
+                    This member has no valid telehealth/CHI consent on file. Capture consent to enable
+                    submission — your answers will be saved and restored when you return.
+                  </Text>
+                  <Group>
+                    <Button
+                      size="xs"
+                      color="red"
+                      leftSection={<IconLock size={14} />}
+                      onClick={goCaptureConsent}
+                    >
+                      Capture consent
+                    </Button>
+                  </Group>
+                </Stack>
+              </Alert>
+            )}
+
             <Group>
               <Button
                 size="md"
                 color="grape"
                 onClick={submit}
                 loading={submitting}
-                disabled={!selectedPatient || answered === 0}
+                disabled={!selectedPatient || answered === 0 || consentValid !== true}
               >
                 Submit assessment
               </Button>
               <Text size="xs" c="dimmed">
                 {answered}/{total} answered
+                {selectedPatient && consentValid === null && ' · checking consent…'}
               </Text>
             </Group>
           </Stack>

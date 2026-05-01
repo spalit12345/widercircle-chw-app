@@ -749,6 +749,7 @@ export function MemberContextPage(): JSX.Element {
         onPhoneAction={openEcmModal}
         onMessageAction={() => navigate('/Communication')}
         onCalendarAction={() => navigate('/my-schedule')}
+        onStartSdohAssessment={() => navigate(`/sdoh?patient=${patientId}`)}
         moreActions={moreActions}
       />
 

@@ -75,6 +75,12 @@ export interface Today360Props {
   onOpenTask: (taskId: string | undefined) => void;
   onOpenPatient: (patientId: string | undefined) => void;
   onNavigate: (path: string) => void;
+  /** Count of patients whose CCM time is ≥ 70% and < 100% of the billable threshold this month. */
+  approachingThresholdCount: number;
+  /** Total number of patient/program billing rows for the month (denominator). */
+  totalBillingRows: number;
+  /** True while the underlying CCM aggregation is loading. */
+  thresholdsLoading: boolean;
 }
 
 const todayDateLabel = (): string => {
@@ -86,6 +92,31 @@ export function Today360View(props: Today360Props): JSX.Element {
   const visitsCount = props.scheduleToday.length;
   const overdueCount = props.overdue.length;
   const dueCount = props.dueToday.length;
+
+  // "From Plan of Care" = task whose basedOn includes a CarePlan reference.
+  // Powers the colored sub-text accent on the Tasks Due tile.
+  const fromPocCount = props.dueToday.filter((t) =>
+    (t.basedOn ?? []).some((ref) => ref.reference?.startsWith('CarePlan/'))
+  ).length;
+
+  // Average age (in days) of overdue tasks — uses Task.restriction.period.end
+  // if available, falls back to Task.authoredOn.
+  const overdueAvgAgeDays = (() => {
+    if (overdueCount === 0) return 0;
+    const now = Date.now();
+    let totalMs = 0;
+    let counted = 0;
+    for (const t of props.overdue) {
+      const dueIso = t.restriction?.period?.end ?? t.authoredOn;
+      if (!dueIso) continue;
+      const due = new Date(dueIso).getTime();
+      if (Number.isNaN(due)) continue;
+      totalMs += Math.max(0, now - due);
+      counted += 1;
+    }
+    if (counted === 0) return 0;
+    return Math.max(1, Math.round(totalMs / counted / (24 * 60 * 60 * 1000)));
+  })();
 
   // Map appointments → ScheduleEntry for the v2 row.
   const scheduleEntries: ScheduleEntry[] = props.scheduleToday.slice(0, 6).map((a, idx) => ({
@@ -155,33 +186,76 @@ export function Today360View(props: Today360Props): JSX.Element {
           label="Today's visits"
           value={String(visitsCount)}
           sub={
-            scheduleEntries.length === 0
-              ? 'Clear day.'
-              : scheduleEntries
+            scheduleEntries.length === 0 ? (
+              <span>Clear day.</span>
+            ) : (
+              <span>
+                {scheduleEntries
                   .slice(0, 2)
                   .map((e) => `${e.member} ${e.time}`)
-                  .join(' · ')
+                  .join(' · ')}
+              </span>
+            )
           }
         />
         <KPIStat
           icon={<IconClipboardCheck size={18} />}
           label="Tasks due today"
           value={String(dueCount)}
-          sub={dueCount === 0 ? 'Nothing due today.' : 'Including auto-created from triggers'}
+          sub={
+            dueCount === 0 ? (
+              <span>Nothing due today.</span>
+            ) : fromPocCount > 0 ? (
+              <>
+                <SubAccent tone="brand">+{fromPocCount}</SubAccent>
+                <span>incl. {fromPocCount} from PoC</span>
+              </>
+            ) : (
+              <span>Including auto-created from triggers</span>
+            )
+          }
         />
         <KPIStat
           icon={<IconAlertTriangle size={18} />}
           label="Overdue"
           value={String(overdueCount)}
-          sub={overdueCount === 0 ? 'No overdue items.' : 'Snooze or escalate'}
+          sub={
+            overdueCount === 0 ? (
+              <span>No overdue items.</span>
+            ) : overdueAvgAgeDays > 0 ? (
+              <>
+                <SubAccent tone="danger">{overdueAvgAgeDays}d avg age</SubAccent>
+                <span>snooze or escalate</span>
+              </>
+            ) : (
+              <span>Snooze or escalate</span>
+            )
+          }
           tone={overdueCount > 0 ? 'danger' : undefined}
         />
         <KPIStat
           icon={<IconTimeline size={18} />}
-          label="Caseload"
-          value="—"
-          sub="Threshold widget arrives with the cohort dashboard"
-          muted
+          label="Near CCM threshold"
+          value={props.thresholdsLoading ? '—' : String(props.approachingThresholdCount)}
+          sub={
+            props.thresholdsLoading ? (
+              <span>Loading caseload…</span>
+            ) : props.totalBillingRows === 0 ? (
+              <span>No billable members this month.</span>
+            ) : props.approachingThresholdCount === 0 ? (
+              <>
+                <SubAccent tone="info">0 approaching</SubAccent>
+                <span>of {props.totalBillingRows} · open dashboard</span>
+              </>
+            ) : (
+              <>
+                <SubAccent tone="warn">{props.approachingThresholdCount} approaching</SubAccent>
+                <span>of {props.totalBillingRows} · open dashboard</span>
+              </>
+            )
+          }
+          tone={props.approachingThresholdCount > 0 ? 'warn' : undefined}
+          onClick={() => props.onNavigate('/billing-dashboard')}
         />
       </div>
 
@@ -337,17 +411,34 @@ function KPIStat({
   sub,
   tone,
   muted,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
-  sub: string;
-  tone?: 'danger';
+  /** Accepts a string OR JSX so callers can split into a colored accent + grey trailing. */
+  sub: ReactNode;
+  tone?: 'danger' | 'warn';
   muted?: boolean;
+  onClick?: () => void;
 }): JSX.Element {
-  const accent = tone === 'danger' ? COLOR_DANGER : COLOR_INK_2;
+  const accent = tone === 'danger' ? COLOR_DANGER : tone === 'warn' ? COLOR_BRAND : COLOR_INK_2;
+  const interactive = !!onClick;
   return (
     <div
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
       style={{
         background: muted ? COLOR_SURFACE_SUBTLE : '#fff',
         border: `1px solid ${COLOR_BORDER}`,
@@ -357,17 +448,36 @@ function KPIStat({
         flexDirection: 'column',
         gap: 8,
         opacity: muted ? 0.85 : 1,
+        cursor: interactive ? 'pointer' : 'default',
+        transition: 'border-color .12s ease, box-shadow .12s ease',
       }}
+      onMouseEnter={
+        interactive
+          ? (e) => {
+              e.currentTarget.style.borderColor = COLOR_BRAND;
+              e.currentTarget.style.boxShadow = '0 1px 6px rgba(234,100,36,0.12)';
+            }
+          : undefined
+      }
+      onMouseLeave={
+        interactive
+          ? (e) => {
+              e.currentTarget.style.borderColor = COLOR_BORDER;
+              e.currentTarget.style.boxShadow = 'none';
+            }
+          : undefined
+      }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: COLOR_FG_MUTE }}>
         {icon}
         <span
           style={{
-            fontFamily: 'Inter',
-            fontSize: 11,
+            fontFamily: 'var(--font-body)',
+            fontSize: 12,
             fontWeight: 700,
-            letterSpacing: '0.05em',
+            letterSpacing: '0.055em',
             textTransform: 'uppercase',
+            lineHeight: 1,
             color: COLOR_FG_HELP,
           }}
         >
@@ -376,17 +486,60 @@ function KPIStat({
       </div>
       <div
         style={{
-          fontFamily: 'Montserrat, system-ui, sans-serif',
+          fontFamily: 'var(--font-display)',
           fontWeight: 700,
-          fontSize: 28,
+          fontSize: 30,
+          lineHeight: 1.1,
+          letterSpacing: '-0.01em',
           color: accent,
-          lineHeight: 1,
         }}
       >
         {value}
       </div>
-      <div style={{ fontFamily: 'Inter', fontSize: 11.5, color: COLOR_FG_HELP, lineHeight: '17px' }}>{sub}</div>
+      <div
+        style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 12,
+          fontWeight: 400,
+          color: COLOR_FG_HELP,
+          lineHeight: '16px',
+          display: 'flex',
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+          columnGap: 8,
+          rowGap: 2,
+        }}
+      >
+        {sub}
+      </div>
     </div>
+  );
+}
+
+function SubAccent({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone: 'brand' | 'success' | 'danger' | 'warn' | 'info';
+}): JSX.Element {
+  const color =
+    tone === 'brand' ? COLOR_BRAND
+    : tone === 'success' ? COLOR_TEAL_FG
+    : tone === 'danger' ? COLOR_DANGER
+    : tone === 'warn' ? COLOR_BRAND
+    : COLOR_INK_2;
+  return (
+    <span
+      style={{
+        fontFamily: 'var(--font-body)',
+        color,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
   );
 }
 
