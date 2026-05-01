@@ -46,7 +46,7 @@ export function RoleManagementPage(): JSX.Element {
           <Stack gap={2}>
             <Title order={2}>Role management</Title>
             <Text c="dimmed" size="sm">
-              DA-14 RBAC v1 — function-dimension only. Entity-scope (CE/BA/Dual, DA-11) and member-assignment scope (DA-01) deferred. Role changes append-only to a local audit trail (DA-13-lite).
+              RBAC v1 — function-dimension only. Entity-scope (CE/BA/Dual) and member-assignment scope deferred. Role changes append-only to a local audit trail.
             </Text>
           </Stack>
           <Group gap="xs">

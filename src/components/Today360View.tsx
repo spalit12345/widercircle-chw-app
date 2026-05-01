@@ -180,7 +180,7 @@ export function Today360View(props: Today360Props): JSX.Element {
           icon={<IconTimeline size={18} />}
           label="Caseload"
           value="—"
-          sub="Threshold widget arrives with CD-17 cohort dashboard"
+          sub="Threshold widget arrives with the cohort dashboard"
           muted
         />
       </div>

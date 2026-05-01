@@ -1,25 +1,20 @@
 // SPDX-FileCopyrightText: Copyright Orangebot, Inc. and Medplum contributors
 // SPDX-License-Identifier: Apache-2.0
 import {
-  Alert,
   Badge,
   Button,
-  Card,
   Divider,
   Group,
   Loader,
-  Modal,
   Select,
   Stack,
-  Text,
   Title,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { formatDateTime, normalizeErrorString } from '@medplum/core';
 import type { CarePlan, CarePlanActivity, Communication, Patient } from '@medplum/fhirtypes';
 import { Document, useMedplum } from '@medplum/react';
-import { IconCheck, IconGitCompare, IconLock } from '@tabler/icons-react';
+import { IconCheck, IconLock } from '@tabler/icons-react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -28,6 +23,7 @@ import { SignaturePad } from '../components/SignaturePad';
 import { PlanReview360View } from '../components/PlanReview360View';
 
 const SIGNATURE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-signature';
+const SIGNATURE_ROLE_EXT = 'https://widercircle.com/fhir/StructureDefinition/acknowledgment-role';
 
 // Plan acknowledgments are recorded as Communication resources with
 // category.coding.code='plan-acknowledgment'. Plain FHIR Communication works
@@ -121,7 +117,6 @@ export function PlanReviewPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [acking, setAcking] = useState(false);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [diffOpened, { open: openDiff, close: closeDiff }] = useDisclosure(false);
 
   const loadPatients = useCallback(async () => {
     try {
@@ -254,10 +249,14 @@ export function PlanReviewPage(): JSX.Element {
               data: signatureDataUrl.replace(/^data:image\/png;base64,/, ''),
             },
           },
+          {
+            url: SIGNATURE_ROLE_EXT,
+            valueString: 'provider',
+          },
         ],
       };
       await medplum.createResource<Communication>(ack);
-      showNotification({ color: 'green', message: 'Care Provider signature captured' });
+      showNotification({ color: 'green', message: 'Care Provider signature captured · plan released for CHW review' });
       setSignatureDataUrl(null);
       await loadPlan(selectedPatient);
     } catch (err) {
@@ -274,32 +273,23 @@ export function PlanReviewPage(): JSX.Element {
     return acks.some((a) => a.sender?.reference === currentUserRef);
   }, [acks, plan?.id, currentUserRef]);
 
-  // CD-08 AC-3 — diff against the previous Plan version. Three buckets:
-  // added items (in latest, not in previous), removed (in previous, not in
-  // latest), status-changed (same id, different detail.status).
-  const versionDiff = useMemo(() => {
-    if (versionHistory.length < 2) {
-      return { added: [], removed: [], statusChanged: [] };
-    }
-    const itemsOf = (cp: CarePlan): ReviewItem[] => itemsFromPlan(cp, currentUserRef);
-    const latestItems = itemsOf(versionHistory[0]);
-    const prevItems = itemsOf(versionHistory[1]);
-    const prevById = new Map(prevItems.map((i) => [i.id, i]));
-    const latestById = new Map(latestItems.map((i) => [i.id, i]));
-    const added = latestItems.filter((i) => !prevById.has(i.id));
-    const removed = prevItems.filter((i) => !latestById.has(i.id));
-    const statusChanged: { item: ReviewItem; from: ItemStatus }[] = [];
-    for (const item of latestItems) {
-      const prev = prevById.get(item.id);
-      if (prev && prev.status !== item.status) {
-        statusChanged.push({ item, from: prev.status });
-      }
-    }
-    return { added, removed, statusChanged };
-  }, [versionHistory, currentUserRef]);
+  const providerAck = useMemo(() => {
+    return acks.find((a) =>
+      a.extension?.some((e) => e.url === SIGNATURE_ROLE_EXT && e.valueString === 'provider')
+    );
+  }, [acks]);
 
-  const hasDiff =
-    versionDiff.added.length + versionDiff.removed.length + versionDiff.statusChanged.length > 0;
+  const providerSigned = !!providerAck;
+  const providerSignedAt = providerAck?.sent;
+  const providerSignedBy = providerAck?.sender?.display;
+  const providerSignatureDataUrl = useMemo(() => {
+    const ext = providerAck?.extension?.find((e) => e.url === SIGNATURE_EXT);
+    const fromExt = ext?.valueAttachment?.data;
+    const fromPayload = providerAck?.payload?.find((p) => p.contentAttachment?.contentType === 'image/png')
+      ?.contentAttachment?.data;
+    const data = fromExt ?? fromPayload;
+    return data ? `data:image/png;base64,${data}` : undefined;
+  }, [providerAck]);
 
   if (loading) {
     return (
@@ -310,158 +300,24 @@ export function PlanReviewPage(): JSX.Element {
   }
 
   return (
-    <>
-      <PlanReview360View
-        plan={plan}
-        patient={undefined}
-        items={items}
-        versionHistory={versionHistory}
-        acks={acks}
-        reviewState="draft"
-        alreadyAcked={alreadyAcked}
-        canSignAsProvider={canSignAsProvider}
-        acking={acking}
-        signatureDataUrl={signatureDataUrl}
-        setSignatureDataUrl={setSignatureDataUrl}
-        ackThisPlan={ackThisPlan}
-        onCompareV3={openDiff}
-      />
-
-      {/* CD-08 AC-3 — Plan version diff. Compares latest vs previous version
-          and lists items added, removed, and status-changed. */}
-      <Modal
-        opened={diffOpened}
-        onClose={closeDiff}
-        title={`Changes since v${Math.max(0, versionHistory.length - 1)}`}
-        size="lg"
-        centered
-      >
-        <Stack gap="md">
-          {!hasDiff ? (
-            <Alert color="gray" variant="light">
-              <Text size="sm">
-                No item-level changes between this version and the previous one. Differences may
-                be in narrative or metadata only.
-              </Text>
-            </Alert>
-          ) : (
-            <>
-              {versionDiff.added.length > 0 && (
-                <Card withBorder radius="md" padding="md">
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <Badge color="green" variant="light">
-                        Added · {versionDiff.added.length}
-                      </Badge>
-                    </Group>
-                    {versionDiff.added.map((item) => (
-                      <Group
-                        key={`added-${item.id}`}
-                        justify="space-between"
-                        p="xs"
-                        wrap="nowrap"
-                        style={{ borderLeft: '3px solid var(--mantine-color-green-5)', paddingLeft: 8 }}
-                      >
-                        <Stack gap={2}>
-                          <Text size="sm" fw={500}>
-                            {item.title}
-                          </Text>
-                          {item.description && (
-                            <Text size="xs" c="dimmed">
-                              {item.description}
-                            </Text>
-                          )}
-                        </Stack>
-                        <Badge size="xs" color={STATUS_COLORS[item.status]} variant="light">
-                          {STATUS_LABELS[item.status]}
-                        </Badge>
-                      </Group>
-                    ))}
-                  </Stack>
-                </Card>
-              )}
-              {versionDiff.removed.length > 0 && (
-                <Card withBorder radius="md" padding="md">
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <Badge color="red" variant="light">
-                        Removed · {versionDiff.removed.length}
-                      </Badge>
-                    </Group>
-                    {versionDiff.removed.map((item) => (
-                      <Group
-                        key={`removed-${item.id}`}
-                        justify="space-between"
-                        p="xs"
-                        wrap="nowrap"
-                        style={{
-                          borderLeft: '3px solid var(--mantine-color-red-5)',
-                          paddingLeft: 8,
-                          textDecoration: 'line-through',
-                          opacity: 0.7,
-                        }}
-                      >
-                        <Stack gap={2}>
-                          <Text size="sm" fw={500}>
-                            {item.title}
-                          </Text>
-                          {item.description && (
-                            <Text size="xs" c="dimmed">
-                              {item.description}
-                            </Text>
-                          )}
-                        </Stack>
-                        <Badge size="xs" color={STATUS_COLORS[item.status]} variant="light">
-                          {STATUS_LABELS[item.status]}
-                        </Badge>
-                      </Group>
-                    ))}
-                  </Stack>
-                </Card>
-              )}
-              {versionDiff.statusChanged.length > 0 && (
-                <Card withBorder radius="md" padding="md">
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <Badge color="blue" variant="light">
-                        Status changed · {versionDiff.statusChanged.length}
-                      </Badge>
-                    </Group>
-                    {versionDiff.statusChanged.map(({ item, from }) => (
-                      <Group
-                        key={`status-${item.id}`}
-                        justify="space-between"
-                        p="xs"
-                        wrap="nowrap"
-                        style={{
-                          borderLeft: '3px solid var(--mantine-color-blue-5)',
-                          paddingLeft: 8,
-                        }}
-                      >
-                        <Text size="sm" fw={500}>
-                          {item.title}
-                        </Text>
-                        <Group gap={4}>
-                          <Badge size="xs" color={STATUS_COLORS[from]} variant="light">
-                            {STATUS_LABELS[from]}
-                          </Badge>
-                          <Text size="xs" c="dimmed">
-                            →
-                          </Text>
-                          <Badge size="xs" color={STATUS_COLORS[item.status]} variant="light">
-                            {STATUS_LABELS[item.status]}
-                          </Badge>
-                        </Group>
-                      </Group>
-                    ))}
-                  </Stack>
-                </Card>
-              )}
-            </>
-          )}
-        </Stack>
-      </Modal>
-    </>
+    <PlanReview360View
+      plan={plan}
+      patient={undefined}
+      items={items}
+      versionHistory={versionHistory}
+      acks={acks}
+      reviewState="draft"
+      alreadyAcked={alreadyAcked}
+      canSignAsProvider={canSignAsProvider}
+      acking={acking}
+      signatureDataUrl={signatureDataUrl}
+      setSignatureDataUrl={setSignatureDataUrl}
+      ackThisPlan={ackThisPlan}
+      providerSigned={providerSigned}
+      providerSignedAt={providerSignedAt}
+      providerSignedBy={providerSignedBy}
+      providerSignatureDataUrl={providerSignatureDataUrl}
+    />
   );
 }
 

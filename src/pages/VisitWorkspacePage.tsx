@@ -553,7 +553,7 @@ export function VisitWorkspacePage(): JSX.Element {
                         Connected · vendor placeholder
                       </Badge>
                       <Text c="white" size="sm" opacity={0.75}>
-                        Video feed would render here. Vendor selection (CD-06 §Open questions) blocks real build.
+                        Video feed would render here. Vendor selection blocks real build.
                       </Text>
                       <Text c="white" size="xs" opacity={0.5} ff="monospace">
                         1 remote · 1 local
@@ -674,14 +674,14 @@ export function VisitWorkspacePage(): JSX.Element {
                   disabled={phase === 'ended' || phase === 'blocked'}
                 />
                 <Text size="xs" c="dimmed">
-                  Plan of Care authoring (CD-08) replaces this textarea when that ticket lands.
+                  Plan of Care authoring replaces this textarea when that feature lands.
                 </Text>
                 {phase === 'ended' && (
                   <Alert color="green" variant="light" title="Visit finalized">
                     <Text size="xs">
                       Encounter set to <span style={{ fontFamily: 'monospace' }}>finished</span>. Billable
                       duration <span style={{ fontFamily: 'monospace' }}>{formatDuration(billableSec)}</span>{' '}
-                      persisted as an extension and flows to CD-17 time tracking.
+                      persisted as an extension and flows to time tracking.
                     </Text>
                     {startedAt && endedAt && (
                       <Text size="xs" c="dimmed" mt={4}>
@@ -710,7 +710,7 @@ export function VisitWorkspacePage(): JSX.Element {
         <Stack gap="md">
           <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
             <Text size="sm">
-              CD-08 §AC-4 requires a Plan of Care before you can close an Encounter and bill the
+              An active Plan of Care is required before you can close an Encounter and bill the
               member's time. This member has no active CarePlan.
             </Text>
             <Text size="xs" c="dimmed" mt="xs">

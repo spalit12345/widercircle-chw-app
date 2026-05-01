@@ -145,7 +145,7 @@ export function BillingSyncPage(): JSX.Element {
           <Stack gap={2}>
             <Title order={2}>Billing sync (Candid)</Title>
             <Text c="dimmed" size="sm">
-              Terminal node of the revenue path. CCM time entries from CD-17 are packaged with the appropriate CPT code (99490 ≥20min · 99439 ≥40min) and sent to Candid for claim submission. Simulated in this PR — vendor contract per CD-10 §4.
+              Terminal node of the revenue path. CCM time entries are packaged with the appropriate CPT code (99490 ≥20min · 99439 ≥40min) and sent to Candid for claim submission. Simulated in this PR — vendor contract pending.
             </Text>
           </Stack>
           <Button
@@ -162,8 +162,7 @@ export function BillingSyncPage(): JSX.Element {
           <Text size="sm">
             <b>Demo build · simulated Candid sync.</b> Each &quot;Sync&quot; click writes a
             Communication record to Medplum that records what would be transmitted (CPT, member,
-            duration, provider). The real Candid 837P call lands with the vendor contract per
-            CD-10 §4.
+            duration, provider). The real Candid 837P call lands with the vendor contract.
           </Text>
         </Alert>
 

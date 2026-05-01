@@ -196,14 +196,14 @@ export function PlanEditPage(): JSX.Element {
 
         {selectedPatient && !latestPlan && (
           <Alert color="yellow" variant="light" icon={<IconLock size={16} />} title="No plan to edit">
-            <Text size="sm">This member has no Plan of Care yet. Provider authors first via /plan-of-care (CD-08).</Text>
+            <Text size="sm">This member has no Plan of Care yet. Provider authors first via /plan-of-care.</Text>
           </Alert>
         )}
 
         {latestPlan && locked && (
           <Alert color="orange" variant="light" icon={<IconLock size={16} />} title={`Plan locked — ${reviewState === 'approved' ? 'approved by Provider' : 'awaiting Provider review'}`}>
             <Text size="sm">
-              Editing is disabled while the plan is in supervision (CD-14 lock). To make changes, request a revision via the review submission page.
+              Editing is disabled while the plan is in supervision. To make changes, request a revision via the review submission page.
             </Text>
           </Alert>
         )}

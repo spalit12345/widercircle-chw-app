@@ -32,7 +32,6 @@ import {
   IconLayersIntersect,
   IconMessageCircle,
   IconNotes,
-  IconPencil,
   IconPhone,
   IconShieldCheck,
   IconSignature,
@@ -349,7 +348,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
             </Menu.Target>
             <Menu.Dropdown>
               {props.moreActions.map((a) => (
-                <Menu.Item key={a.label} onClick={a.onClick} leftSection={a.icon ?? <IconPencil size={14} />}>
+                <Menu.Item key={a.label} onClick={a.onClick} leftSection={a.icon}>
                   {a.label}
                 </Menu.Item>
               ))}

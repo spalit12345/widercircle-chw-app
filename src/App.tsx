@@ -8,6 +8,7 @@ import { RequirePermission } from './auth/RoleGate';
 import { TaskDetailsModal } from './components/tasks/TaskDetailsModal';
 import { hasDoseSpotIdentifier, hasScriptSureIdentifier } from './components/utils';
 import { WcShell } from './components/WcShell';
+import { TimerProvider } from './timer/TimerContext';
 import './index.css';
 
 import { EncounterChartPage } from './pages/encounter/EncounterChartPage';
@@ -268,5 +269,9 @@ export function App(): JSX.Element | null {
     return routes;
   }
 
-  return <WcShell>{routes}</WcShell>;
+  return (
+    <TimerProvider>
+      <WcShell>{routes}</WcShell>
+    </TimerProvider>
+  );
 }

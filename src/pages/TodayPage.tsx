@@ -515,10 +515,10 @@ export function TodayPage(): JSX.Element {
               fontSize: 11,
               fontWeight: 600,
             }}
-            title="Threshold cohort widget arrives with the CD-17 dashboard"
+            title="Threshold cohort widget arrives with the cohort dashboard"
           >
             <span style={{ width: 6, height: 6, borderRadius: 3, background: 'var(--wc-info-500, #5AA8B8)' }} />
-            CCM threshold cohort · pending CD-17
+            CCM threshold cohort · pending
           </span>
           <div style={{ flex: 1 }} />
           <button
