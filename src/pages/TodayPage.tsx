@@ -22,6 +22,7 @@ import { formatDate, formatDateTime, normalizeErrorString } from '@medplum/core'
 import type { Appointment, Patient, Task } from '@medplum/fhirtypes';
 import { useMedplum } from '@medplum/react';
 import { Today360View } from '../components/Today360View';
+import { useCcmMonthlyTotals } from '../billing/useCcmMonthlyTotals';
 import { TodayCaseloadRail } from '../components/TodayCaseloadRail';
 import {
   IconBell,
@@ -140,6 +141,7 @@ export function TodayPage(): JSX.Element {
   const medplum = useMedplum();
   const navigate = useNavigate();
   const { hasPermission } = useRole();
+  const { summary: billingSummary, loading: billingLoading } = useCcmMonthlyTotals();
   const visibleQuickActions = useMemo(
     () => QUICK_ACTIONS.filter((a) => !a.permission || hasPermission(a.permission)),
     [hasPermission]
@@ -581,6 +583,9 @@ export function TodayPage(): JSX.Element {
             onOpenTask={(taskId) => taskId && navigate(`/Task/${taskId}`)}
             onOpenPatient={(patientId) => patientId && navigate(`/Patient/${patientId}`)}
             onNavigate={navigate}
+            approachingThresholdCount={billingSummary.approachingCount}
+            totalBillingRows={billingSummary.totalRows}
+            thresholdsLoading={billingLoading}
           />
         </div>
       </div>

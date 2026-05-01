@@ -9,6 +9,7 @@
 
 import { Badge, Card, Group, Stack, Text } from '@mantine/core';
 import { calculateAgeString, formatHumanName } from '@medplum/core';
+import { formatAgeString } from '../utils/age';
 import type { Coverage, HumanName, Patient } from '@medplum/fhirtypes';
 import { IconAlertTriangle, IconBriefcase, IconLanguage, IconMapPin, IconPhone, IconShieldCheck } from '@tabler/icons-react';
 import type { JSX } from 'react';
@@ -81,7 +82,7 @@ export function MemberKeyInfoHeader({
   const { name: planName, planId } = planLabel(coverages);
   const tier = riskTier ?? readRiskTier(patient);
   const tierTone = tier ? RISK_TIER_TONE[tier] ?? 'gray' : 'gray';
-  const ageString = patient?.birthDate ? calculateAgeString(patient.birthDate) : null;
+  const ageString = patient?.birthDate ? formatAgeString(calculateAgeString(patient.birthDate)) : null;
   const deceased = Boolean(patient?.deceasedBoolean) || Boolean(patient?.deceasedDateTime);
 
   return (

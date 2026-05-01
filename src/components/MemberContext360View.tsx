@@ -9,6 +9,7 @@
 
 import { Menu, UnstyledButton } from '@mantine/core';
 import { calculateAgeString, formatHumanName } from '@medplum/core';
+import { formatAgeString } from '../utils/age';
 import type {
   AllergyIntolerance,
   CarePlan,
@@ -27,6 +28,7 @@ import {
   IconCalendar,
   IconChevronRight,
   IconClipboardCheck,
+  IconClipboardList,
   IconClock,
   IconDots,
   IconLayersIntersect,
@@ -86,6 +88,8 @@ export interface MemberContext360Props {
   onPhoneAction: () => void;
   onMessageAction: () => void;
   onCalendarAction: () => void;
+  /** Launch a new SDoH assessment for this member (deep-links to /sdoh?patient=<id>). */
+  onStartSdohAssessment?: () => void;
   moreActions: { label: string; onClick: () => void; icon?: ReactNode }[];
 }
 
@@ -109,7 +113,7 @@ const demographicsLine = (patient: Patient): string => {
     (e) => e.url === 'http://hl7.org/fhir/StructureDefinition/individual-pronouns'
   )?.valueString;
   if (pronouns) parts.push(pronouns);
-  if (patient.birthDate) parts.push(calculateAgeString(patient.birthDate) ?? '');
+  if (patient.birthDate) parts.push(formatAgeString(calculateAgeString(patient.birthDate)));
   if (patient.birthDate) parts.push(`DOB ${patient.birthDate}`);
   return parts.filter(Boolean).join(' · ');
 };
@@ -130,6 +134,18 @@ const homeAddressLine = (patient: Patient): string => {
 const phoneLine = (patient: Patient): string => {
   const tel = patient.telecom?.find((t) => t.system === 'phone' && t.rank === 1) ?? patient.telecom?.find((t) => t.system === 'phone');
   return tel?.value ?? '—';
+};
+
+// Primary Care Provider — uses Patient.generalPractitioner[0].display, falling
+// back to the reference's tail if the display isn't populated. We don't fetch
+// the linked Practitioner here; if it's available, the FHIR reference's
+// `display` is the canonical inline name.
+const primaryCareProviderLabel = (patient: Patient): string => {
+  const gp = patient.generalPractitioner?.[0];
+  if (!gp) return '—';
+  if (gp.display) return gp.display;
+  const tail = gp.reference?.split('/').pop();
+  return tail ?? '—';
 };
 
 const planLabel = (coverages: Coverage[]): { primary: string; sub?: string } => {
@@ -417,6 +433,8 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
               </>
             }
           />
+          <MetaField label="PCP" value={primaryCareProviderLabel(props.patient)} />
+          <MetaField label="Risk tier" value={props.riskTier ? `Tier ${props.riskTier}` : '—'} />
           <MetaField label="Language" value={primaryLanguageLabel(props.patient)} />
           <MetaField label="Phone" value={phoneLine(props.patient)} />
           <MetaField label="Location" value={homeAddressLine(props.patient)} />
@@ -541,6 +559,32 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
 
         {tab === 'SDoH' && (
           <Section title="SDoH & resources">
+            {props.onStartSdohAssessment && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <button
+                  type="button"
+                  onClick={props.onStartSdohAssessment}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    height: 34,
+                    padding: '0 14px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: COLOR_BRAND,
+                    color: '#fff',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <IconClipboardList size={14} />
+                  Start SDoH assessment
+                </button>
+              </div>
+            )}
             <SDoHFlagsList flags={sdohFlagsFromCases(props.cases)} />
           </Section>
         )}

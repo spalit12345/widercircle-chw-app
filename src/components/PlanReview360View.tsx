@@ -6,6 +6,7 @@
 // data + handlers come from PlanReviewPage.
 
 import { calculateAgeString, formatDateTime } from '@medplum/core';
+import { formatAgeString } from '../utils/age';
 import type { CarePlan, Communication, Patient } from '@medplum/fhirtypes';
 import {
   IconAlertTriangle,
@@ -86,7 +87,7 @@ function memberIdentity(patient: Patient | undefined, plan: CarePlan | undefined
 function memberMeta(patient: Patient | undefined): string {
   if (!patient) return '';
   const parts: string[] = [];
-  if (patient.birthDate) parts.push(calculateAgeString(patient.birthDate) ?? '');
+  if (patient.birthDate) parts.push(formatAgeString(calculateAgeString(patient.birthDate)));
   if (patient.gender) parts.push(patient.gender.charAt(0).toUpperCase());
   if (patient.id) parts.push(`MRN ${patient.id.slice(0, 8).toUpperCase()}`);
   return parts.filter(Boolean).join(' · ');
