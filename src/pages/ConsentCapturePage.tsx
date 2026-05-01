@@ -253,6 +253,17 @@ export function ConsentCapturePage(): JSX.Element {
               searchable
               required
             />
+            {selectedPatient && (
+              <Group justify="flex-start">
+                <Button
+                  variant="light"
+                  leftSection={<IconArrowBackUp size={14} />}
+                  onClick={() => navigate(`/members/${selectedPatient}`)}
+                >
+                  Back to {selectedPatientLabel ?? 'patient'}
+                </Button>
+              </Group>
+            )}
           </Stack>
         </Card>
 
