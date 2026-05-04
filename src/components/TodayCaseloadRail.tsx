@@ -211,7 +211,7 @@ export function TodayCaseloadRail(props: TodayCaseloadRailProps): JSX.Element {
             outline: 'none',
             background: 'transparent',
             fontFamily: 'Inter, system-ui, sans-serif',
-            fontSize: 13,
+            fontSize: 14,
             color: COLOR_INK,
           }}
         />
@@ -222,7 +222,7 @@ export function TodayCaseloadRail(props: TodayCaseloadRailProps): JSX.Element {
         <Eyebrow>My caseload · {allRows.length}</Eyebrow>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 8, maxHeight: 360, overflowY: 'auto' }}>
           {filtered.length === 0 ? (
-            <div style={{ padding: '12px 10px', fontSize: 12, color: COLOR_FG_HELP }}>
+            <div style={{ padding: '12px 10px', fontSize: 13, color: COLOR_FG_HELP }}>
               No members match.
             </div>
           ) : (
@@ -262,7 +262,7 @@ export function TodayCaseloadRail(props: TodayCaseloadRailProps): JSX.Element {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: COLOR_INK,
                       overflow: 'hidden',
@@ -274,7 +274,7 @@ export function TodayCaseloadRail(props: TodayCaseloadRailProps): JSX.Element {
                   </div>
                   <div
                     style={{
-                      fontSize: 11,
+                      fontSize: 12,
                       color: COLOR_FG_HELP,
                       marginTop: 1,
                       overflow: 'hidden',
@@ -343,7 +343,7 @@ function Eyebrow({ children }: { children: ReactNode }): JSX.Element {
     <div
       style={{
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
@@ -386,7 +386,7 @@ function FilterChip({
         background: active ? COLOR_BRAND_TINT : '#fff',
         color: active ? 'var(--wc-primary-700, #B84E1A)' : COLOR_INK_2,
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
@@ -403,7 +403,7 @@ function FilterChip({
             borderRadius: 9,
             background: active ? COLOR_BRAND : COLOR_INK_2,
             color: '#fff',
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 700,
             display: 'inline-flex',
             alignItems: 'center',

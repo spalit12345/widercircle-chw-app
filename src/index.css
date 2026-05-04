@@ -1,10 +1,9 @@
 .rbc-calendar {
-  font-family:
-    -apple-system, 'system-ui', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  font-family: var(--font-body, Inter, system-ui, sans-serif);
 }
 
 .rbc-btn-group button {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .mantine-ActionIcon-root:active {

@@ -448,7 +448,7 @@ export function TodayPage(): JSX.Element {
               style={{
                 fontFamily: 'Inter, system-ui, sans-serif',
                 fontWeight: 700,
-                fontSize: 12,
+                fontSize: 13,
                 letterSpacing: '0.06em',
                 color: 'var(--wc-success-700, #015F5D)',
                 textTransform: 'uppercase',
@@ -461,7 +461,7 @@ export function TodayPage(): JSX.Element {
             style={{
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 15,
+              fontSize: 16,
               color: 'var(--wc-base-800, #012B49)',
               marginLeft: 14,
             }}
@@ -478,7 +478,7 @@ export function TodayPage(): JSX.Element {
               background: 'var(--wc-primary-100, #FDEEE6)',
               color: 'var(--wc-primary-700, #B84E1A)',
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
             }}
           >
@@ -496,7 +496,7 @@ export function TodayPage(): JSX.Element {
                 background: 'var(--wc-error-100, #FCE9E1)',
                 color: 'var(--wc-error-700, #A73304)',
                 fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 600,
               }}
             >
@@ -514,7 +514,7 @@ export function TodayPage(): JSX.Element {
               background: 'var(--wc-info-100, #EAF7FA)',
               color: 'var(--wc-info-700, #015F5D)',
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
             }}
             title="Threshold cohort widget arrives with the cohort dashboard"

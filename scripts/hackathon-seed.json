@@ -75,6 +75,9 @@
         "name": [{ "given": ["Maria", "Elena"], "family": "Garcia" }],
         "gender": "female",
         "birthDate": "1958-03-15",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/6787568/pexels-photo-6787568.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1001", "use": "home" },
           { "system": "email", "value": "maria.garcia@email.com", "use": "home" }
@@ -102,6 +105,9 @@
         "name": [{ "given": ["James"], "family": "Wilson" }],
         "gender": "male",
         "birthDate": "1972-07-22",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/6771181/pexels-photo-6771181.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1002", "use": "home" },
           { "system": "email", "value": "james.wilson@email.com", "use": "home" }
@@ -129,6 +135,9 @@
         "name": [{ "given": ["Robert"], "family": "Chen" }],
         "gender": "male",
         "birthDate": "1965-11-08",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/4584496/pexels-photo-4584496.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1003", "use": "home" },
           { "system": "email", "value": "robert.chen@email.com", "use": "home" }
@@ -156,6 +165,9 @@
         "name": [{ "given": ["Dorothy"], "family": "Johnson" }],
         "gender": "female",
         "birthDate": "1950-01-30",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/5336157/pexels-photo-5336157.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1004", "use": "home" },
           { "system": "email", "value": "dorothy.johnson@email.com", "use": "home" }
@@ -183,6 +195,9 @@
         "name": [{ "given": ["Linda"], "family": "Thompson" }],
         "gender": "female",
         "birthDate": "1968-09-12",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/9385076/pexels-photo-9385076.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1005", "use": "mobile" },
           { "system": "email", "value": "linda.thompson@email.com", "use": "home" }
@@ -210,6 +225,9 @@
         "name": [{ "given": ["Marcus"], "family": "Davis" }],
         "gender": "male",
         "birthDate": "1980-04-05",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/5648099/pexels-photo-5648099.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1006", "use": "mobile" },
           { "system": "email", "value": "marcus.davis@email.com", "use": "home" }
@@ -237,6 +255,9 @@
         "name": [{ "given": ["Rosa"], "family": "Martinez" }],
         "gender": "female",
         "birthDate": "1975-12-20",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/15026471/pexels-photo-15026471.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1007", "use": "home" },
           { "system": "email", "value": "rosa.martinez@email.com", "use": "home" }
@@ -264,6 +285,9 @@
         "name": [{ "given": ["Tran"], "family": "Nguyen" }],
         "gender": "male",
         "birthDate": "1962-06-18",
+        "photo": [
+          { "contentType": "image/jpeg", "url": "https://images.pexels.com/photos/29945647/pexels-photo-29945647.jpeg?auto=compress&w=400&h=400&fit=crop" }
+        ],
         "telecom": [
           { "system": "phone", "value": "(213) 555-1008", "use": "home" },
           { "system": "email", "value": "tran.nguyen@email.com", "use": "home" }

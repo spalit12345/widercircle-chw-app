@@ -286,11 +286,11 @@ export function EligibilityCheckPage(): JSX.Element {
           {period?.start && (
             <Group gap="lg">
               <Text size="sm" c="dimmed">
-                Effective: <span style={{ fontFamily: 'monospace' }}>{formatDate(period.start)}</span>
+                Effective: <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{formatDate(period.start)}</span>
               </Text>
               {period.end && (
                 <Text size="sm" c="dimmed">
-                  Through: <span style={{ fontFamily: 'monospace' }}>{formatDate(period.end)}</span>
+                  Through: <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{formatDate(period.end)}</span>
                 </Text>
               )}
             </Group>
@@ -299,7 +299,7 @@ export function EligibilityCheckPage(): JSX.Element {
             <Group gap="lg">
               {items.map((it, idx) => (
                 <Text key={idx} size="sm" c="dimmed">
-                  {it.category?.text}: <span style={{ fontFamily: 'monospace' }}>{it.description}</span>
+                  {it.category?.text}: <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{it.description}</span>
                 </Text>
               ))}
             </Group>

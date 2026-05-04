@@ -358,7 +358,7 @@ function BillableEncounterWidget({
             style={{
               fontFamily: 'Inter, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 11,
+              fontSize: 12,
               letterSpacing: '0.06em',
               color: 'var(--wc-base-500, #8499AA)',
               textTransform: 'uppercase',
@@ -376,7 +376,7 @@ function BillableEncounterWidget({
               background: candidSynced ? 'var(--wc-success-100, #DDF3F2)' : 'var(--wc-base-100, #F6F7F8)',
               color: candidSynced ? 'var(--wc-success-700, #015F5D)' : 'var(--wc-base-600, #506D85)',
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
             }}
           >
@@ -408,7 +408,7 @@ function BillableEncounterWidget({
                 background: disabled ? 'var(--wc-base-200, #E2E6E9)' : 'var(--wc-primary-500, #EA6424)',
                 color: '#fff',
                 fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: disabled ? 'not-allowed' : 'pointer',
               }}
@@ -431,7 +431,7 @@ function BillableEncounterWidget({
                   background: '#fff',
                   color: 'var(--wc-base-700, #34556D)',
                   fontFamily: 'Inter, system-ui, sans-serif',
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
@@ -453,7 +453,7 @@ function BillableEncounterWidget({
                   background: '#fff',
                   color: 'var(--wc-error-700, #A73304)',
                   fontFamily: 'Inter, system-ui, sans-serif',
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: saving ? 'wait' : 'pointer',
                 }}
@@ -471,7 +471,7 @@ function BillableEncounterWidget({
           style={{
             fontFamily: 'Montserrat, system-ui, sans-serif',
             fontWeight: 700,
-            fontSize: 38,
+            fontSize: 39,
             letterSpacing: '-0.02em',
             color: 'var(--wc-base-800, #012B49)',
             lineHeight: 1,
@@ -483,7 +483,7 @@ function BillableEncounterWidget({
           style={{
             fontFamily: 'Inter, system-ui, sans-serif',
             fontWeight: 600,
-            fontSize: 14,
+            fontSize: 15,
             color: 'var(--wc-base-500, #8499AA)',
           }}
         >
@@ -549,7 +549,7 @@ function BillableEncounterWidget({
                   left: `${pos}%`,
                   transform,
                   fontFamily: 'Inter, system-ui, sans-serif',
-                  fontSize: 11,
+                  fontSize: 12,
                   color: totalMinutes >= t.minutes ? 'var(--wc-base-800, #012B49)' : 'var(--wc-base-500, #8499AA)',
                   fontWeight: totalMinutes >= t.minutes ? 600 : 500,
                   whiteSpace: 'nowrap',

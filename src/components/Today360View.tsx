@@ -301,7 +301,7 @@ export function Today360View(props: Today360Props): JSX.Element {
                 background: '#fff',
                 color: COLOR_INK_2,
                 fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
@@ -480,7 +480,7 @@ function Chip({
         background: t.bg,
         color: t.fg,
         fontFamily: 'Inter',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
       }}
     >
@@ -506,7 +506,7 @@ function RibbonButton({ onClick, icon, children }: { onClick: () => void; icon: 
         background: '#fff',
         color: COLOR_INK_2,
         fontFamily: 'Inter',
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
       }}
@@ -586,7 +586,7 @@ function KPIStat({
         <span
           style={{
             fontFamily: 'var(--font-body)',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 700,
             letterSpacing: '0.055em',
             textTransform: 'uppercase',
@@ -601,7 +601,7 @@ function KPIStat({
         style={{
           fontFamily: 'var(--font-display)',
           fontWeight: 700,
-          fontSize: 30,
+          fontSize: 31,
           lineHeight: 1.1,
           letterSpacing: '-0.01em',
           color: accent,
@@ -612,7 +612,7 @@ function KPIStat({
       <div
         style={{
           fontFamily: 'var(--font-body)',
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 400,
           color: COLOR_FG_HELP,
           lineHeight: '16px',
@@ -675,7 +675,7 @@ function Section({
             style={{
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 18,
+              fontSize: 19,
               color: COLOR_INK,
               margin: 0,
               letterSpacing: '-0.01em',
@@ -684,7 +684,7 @@ function Section({
             {title}
           </h2>
           {subtitle && (
-            <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP, marginTop: 4 }}>{subtitle}</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 13, color: COLOR_FG_HELP, marginTop: 4 }}>{subtitle}</div>
           )}
         </div>
         {right}
@@ -714,7 +714,7 @@ function FilterChipPair({
             background: c.active ? COLOR_BRAND_TINT : '#fff',
             color: c.active ? 'var(--wc-primary-700, #B84E1A)' : COLOR_INK_2,
             fontFamily: 'Inter',
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 600,
           }}
         >
@@ -729,7 +729,7 @@ function FilterChipPair({
                 borderRadius: 9,
                 background: c.tone === 'danger' ? COLOR_DANGER : COLOR_INK_2,
                 color: '#fff',
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: 700,
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -760,10 +760,10 @@ function ScheduleRowV2({ entry, onOpen }: { entry: ScheduleEntry; onOpen: () => 
       }}
     >
       <div>
-        <div style={{ fontFamily: 'Azeret Mono, monospace', fontWeight: 700, fontSize: 14, color: COLOR_INK }}>
+        <div style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 15, color: COLOR_INK }}>
           {entry.time}
         </div>
-        <div style={{ fontSize: 10, color: COLOR_FG_HELP }}>{entry.duration}</div>
+        <div style={{ fontSize: 11, color: COLOR_FG_HELP }}>{entry.duration}</div>
       </div>
       <div
         style={{
@@ -781,12 +781,12 @@ function ScheduleRowV2({ entry, onOpen }: { entry: ScheduleEntry; onOpen: () => 
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: COLOR_INK }}>{entry.member}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: COLOR_INK }}>{entry.member}</span>
           {entry.isNext && <Chip tone="brand" dot>Up next</Chip>}
-          <span style={{ fontSize: 11, color: COLOR_FG_MUTE }}>· {entry.type}</span>
+          <span style={{ fontSize: 12, color: COLOR_FG_MUTE }}>· {entry.type}</span>
         </div>
-        {entry.memberMeta && <div style={{ fontSize: 11, color: COLOR_FG_HELP }}>{entry.memberMeta}</div>}
-        {entry.location && <div style={{ fontSize: 11, color: COLOR_FG_MUTE, marginTop: 2 }}>{entry.location}</div>}
+        {entry.memberMeta && <div style={{ fontSize: 12, color: COLOR_FG_HELP }}>{entry.memberMeta}</div>}
+        {entry.location && <div style={{ fontSize: 12, color: COLOR_FG_MUTE, marginTop: 2 }}>{entry.location}</div>}
       </div>
       <button
         type="button"
@@ -802,7 +802,7 @@ function ScheduleRowV2({ entry, onOpen }: { entry: ScheduleEntry; onOpen: () => 
           background: entry.isNext ? COLOR_BRAND : '#fff',
           color: entry.isNext ? '#fff' : COLOR_INK_2,
           fontFamily: 'Inter',
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',
           boxShadow: entry.isNext ? 'none' : `inset 0 0 0 1px ${COLOR_BORDER}`,
@@ -861,7 +861,7 @@ function TaskRowV2({
       <div style={{ minWidth: 0, cursor: 'pointer' }} onClick={onOpen}>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: 600,
             color: COLOR_INK,
             textDecoration: row.done ? 'line-through' : 'none',
@@ -871,7 +871,7 @@ function TaskRowV2({
         </div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 12,
             color: toneFg,
             marginTop: 2,
             display: 'flex',
@@ -912,12 +912,12 @@ function TaskRowV2({
               justifyContent: 'center',
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 10,
+              fontSize: 11,
             }}
           >
             {row.patientLabel.split(' ').slice(0, 2).map((p) => p[0] ?? '').join('').toUpperCase() || 'M'}
           </span>
-          <span style={{ fontSize: 11, color: COLOR_FG_MUTE }}>{row.patientLabel}</span>
+          <span style={{ fontSize: 12, color: COLOR_FG_MUTE }}>{row.patientLabel}</span>
         </button>
       )}
       <button
@@ -958,7 +958,7 @@ function Empty({ label }: { label: string }): JSX.Element {
       }}
     >
       <IconClock size={16} />
-      <span style={{ fontSize: 12 }}>{label}</span>
+      <span style={{ fontSize: 13 }}>{label}</span>
     </div>
   );
 }

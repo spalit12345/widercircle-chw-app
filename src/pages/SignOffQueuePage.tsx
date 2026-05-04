@@ -91,7 +91,7 @@ export function SignOffQueuePage(): JSX.Element {
             style={{
               fontFamily: 'Inter, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 13,
               letterSpacing: '0.05em',
               color: 'var(--wc-warning-700, #C97800)',
               textTransform: 'uppercase',
@@ -104,7 +104,7 @@ export function SignOffQueuePage(): JSX.Element {
             style={{
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 14,
+              fontSize: 15,
               color: 'var(--wc-base-800, #012B49)',
             }}
           >
@@ -113,7 +113,7 @@ export function SignOffQueuePage(): JSX.Element {
           <span
             style={{
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 11,
+              fontSize: 12,
               color: 'var(--wc-base-600, #506D85)',
             }}
           >
