@@ -140,7 +140,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 export function TodayPage(): JSX.Element {
   const medplum = useMedplum();
   const navigate = useNavigate();
-  const { hasPermission } = useRole();
+  const { hasPermission, role } = useRole();
   const { rows: billingRows, summary: billingSummary, loading: billingLoading } = useCcmMonthlyTotals();
   const visibleQuickActions = useMemo(
     () => QUICK_ACTIONS.filter((a) => !a.permission || hasPermission(a.permission)),
@@ -388,8 +388,16 @@ export function TodayPage(): JSX.Element {
     );
   };
 
-  const greetingName =
-    practitionerName.split(' ')[0] || 'CHW';
+  const SHORT_ROLE_LABEL: Record<typeof role, string> = {
+    CHW: 'CHW',
+    Provider: 'Provider',
+    CaseManager: 'Case Manager',
+    ContactCenterAgent: 'Contact Agent',
+    SystemAdmin: 'Admin',
+  };
+  const givenName = practitionerName.split(' ')[0] || 'Demo';
+  const roleAwareName = `${givenName} ${SHORT_ROLE_LABEL[role]}`;
+  const greetingName = givenName || 'CHW';
   const patientLabelFor = (ref: string | undefined): string | undefined => {
     if (!ref) return undefined;
     const id = ref.startsWith('Patient/') ? ref.slice('Patient/'.length) : ref;
@@ -454,7 +462,7 @@ export function TodayPage(): JSX.Element {
                 textTransform: 'uppercase',
               }}
             >
-              {greeting()}, {practitionerName}
+              {greeting()}, {roleAwareName}
             </span>
           </div>
           <span
