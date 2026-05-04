@@ -4,10 +4,9 @@
  */
 
 /* -----------------------------------------------------------------
- * FONTS — Montserrat loaded locally from /fonts, Inter from Google
- * (Inter remains web-served until brand-approved files land.)
+ * FONTS — Inter and Montserrat are self-hosted from src/styles/wc-v2-tokens.css.
+ * Design v2/fonts only ships those two families; no other fonts permitted.
  * ---------------------------------------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@500;600&family=Azeret+Mono:wght@500&family=Montserrat:wght@400;500;600;700;800&display=swap');
 
 :root {
   /* ============================================================
@@ -123,24 +122,24 @@
   /* ============================================================
    * TYPOGRAPHY — families & scale
    * ============================================================ */
-  --wc-font-display: 'Montserrat', 'Open Sans', system-ui, -apple-system, sans-serif;
-  --wc-font-body:    'Inter', 'Noto Sans', system-ui, -apple-system, sans-serif;
-  --wc-font-mono:    'Azeret Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --wc-font-display: 'Montserrat', system-ui, sans-serif;
+  --wc-font-body:    'Inter', system-ui, sans-serif;
+  --wc-font-mono:    'Inter', system-ui, sans-serif;
 
   /* Headings (Montserrat) — from Fonts spec in the .fig */
-  --wc-h1-size: 24px;  --wc-h1-lh: 34px;  --wc-h1-weight: 700;
-  --wc-h2a-size:19px;  --wc-h2a-lh:28px;  --wc-h2a-weight:700;
-  --wc-h2b-size:19px;  --wc-h2b-lh:28px;  --wc-h2b-weight:600;
-  --wc-h3a-size:16px;  --wc-h3a-lh:26px;  --wc-h3a-weight:700;
-  --wc-h3b-size:16px;  --wc-h3b-lh:26px;  --wc-h3b-weight:600;
-  --wc-h4-size:14px;   --wc-h4-lh:24px;   --wc-h4-weight:700;
+  --wc-h1-size: 25px;  --wc-h1-lh: 34px;  --wc-h1-weight: 700;
+  --wc-h2a-size:20px;  --wc-h2a-lh:28px;  --wc-h2a-weight:700;
+  --wc-h2b-size:20px;  --wc-h2b-lh:28px;  --wc-h2b-weight:600;
+  --wc-h3a-size:17px;  --wc-h3a-lh:26px;  --wc-h3a-weight:700;
+  --wc-h3b-size:17px;  --wc-h3b-lh:26px;  --wc-h3b-weight:600;
+  --wc-h4-size:15px;   --wc-h4-lh:24px;   --wc-h4-weight:700;
 
   /* Body / links (Inter) */
-  --wc-p1-size:17px;   --wc-p1-lh:25px;
-  --wc-p2-size:16px;   --wc-p2-lh:23px;
-  --wc-p3-size:15px;   --wc-p3-lh:20px;
-  --wc-p4a-size:13px;  --wc-p4a-lh:16px;
-  --wc-p4b-size:13px;  --wc-p4b-lh:16px;   /* regular */
+  --wc-p1-size:18px;   --wc-p1-lh:25px;
+  --wc-p2-size:17px;   --wc-p2-lh:23px;
+  --wc-p3-size:16px;   --wc-p3-lh:20px;
+  --wc-p4a-size:14px;  --wc-p4a-lh:16px;
+  --wc-p4b-size:14px;  --wc-p4b-lh:16px;   /* regular */
 
   /* ============================================================
    * RADII / SHADOWS / SPACING
@@ -187,9 +186,9 @@ html, body { font-family: var(--wc-font-body); color: var(--wc-text-primary); ba
 .wc-p2 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p2-size); line-height: var(--wc-p2-lh); }
 .wc-p3 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p3-size); line-height: var(--wc-p3-lh); }
 .wc-l1 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p3-size); line-height: var(--wc-p3-lh); color: var(--wc-text-link); }
-.wc-l2 { font-family: var(--wc-font-body); font-weight: 500; font-size: 13px; line-height: 16px; color: var(--wc-text-link); }
+.wc-l2 { font-family: var(--wc-font-body); font-weight: 500; font-size: 15px; line-height: 16px; color: var(--wc-text-link); }
 .wc-p4 { font-family: var(--wc-font-body); font-weight: 500; font-size: var(--wc-p4a-size); line-height: var(--wc-p4a-lh); }
 .wc-p4-light { font-family: var(--wc-font-body); font-weight: 400; font-size: var(--wc-p4b-size); line-height: var(--wc-p4b-lh); }
 
-.wc-caption { font-family: var(--wc-font-body); font-weight: 500; font-size: 13px; line-height: 16px; color: var(--wc-text-secondary); }
+.wc-caption { font-family: var(--wc-font-body); font-weight: 500; font-size: 15px; line-height: 16px; color: var(--wc-text-secondary); }
 .wc-mono { font-family: var(--wc-font-mono); font-weight: 500; }

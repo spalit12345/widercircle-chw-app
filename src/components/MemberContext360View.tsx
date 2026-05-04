@@ -49,6 +49,7 @@ import {
   ECM_OUTCOMES,
   type EcmStatus,
 } from '../utils/ecm';
+import { PlanOfCareAutomations } from './PlanOfCareAutomations';
 
 const COLOR_INK = 'var(--wc-base-800, #012B49)';
 const COLOR_INK_2 = 'var(--wc-base-700, #34556D)';
@@ -247,9 +248,9 @@ const upcomingEventsFromVisits = (visits: Encounter[]): UpcomingEvent[] =>
   }));
 
 export function MemberContext360View(props: MemberContext360Props): JSX.Element {
-  const [tab, setTab] = useState<'Overview' | 'Activity' | 'Cases' | 'Clinical' | 'SDoH' | 'Events'>(
-    'Overview'
-  );
+  const [tab, setTab] = useState<
+    'Overview' | 'Activity' | 'Cases' | 'Clinical' | 'SDoH' | 'Events' | 'Automations'
+  >('Overview');
 
   const tabs: { k: typeof tab; n?: number }[] = [
     { k: 'Overview' },
@@ -258,6 +259,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
     { k: 'Clinical' },
     { k: 'SDoH' },
     { k: 'Events', n: props.fieldVisits.length },
+    { k: 'Automations' },
   ];
 
   const overdue = overdueCaseCount(props.cases);
@@ -293,37 +295,51 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
       >
         <div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                background: COLOR_INFO_BG,
-                color: COLOR_INFO_FG,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily: 'Montserrat, system-ui, sans-serif',
-                fontWeight: 700,
-                fontSize: 14,
-                flexShrink: 0,
-              }}
-            >
-              {initialsFor(props.patient)}
-            </div>
+            {props.patient.photo?.[0]?.url ? (
+              <img
+                src={props.patient.photo[0].url}
+                alt={fullName(props.patient)}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  background: COLOR_INFO_BG,
+                  color: COLOR_INFO_FG,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: 'Montserrat, system-ui, sans-serif',
+                  fontWeight: 700,
+                  fontSize: 15,
+                  flexShrink: 0,
+                }}
+              >
+                {initialsFor(props.patient)}
+              </div>
+            )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{
                   fontFamily: 'Montserrat, system-ui, sans-serif',
                   fontWeight: 700,
-                  fontSize: 15,
+                  fontSize: 16,
                   color: COLOR_INK,
                   lineHeight: '19px',
                 }}
               >
                 {fullName(props.patient)}
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP, marginTop: 2 }}>
                 {demographicsLine(props.patient) || '—'}
               </div>
             </div>
@@ -374,7 +390,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
 
         <div style={{ background: COLOR_SURFACE_SUBTLE, borderRadius: 12, padding: 18 }}>
           <Eyebrow>Quick context</Eyebrow>
-          <div style={{ fontSize: 12, lineHeight: '18px', color: COLOR_INK_2, marginTop: 8 }}>
+          <div style={{ fontSize: 13, lineHeight: '18px', color: COLOR_INK_2, marginTop: 8 }}>
             <div>
               <span style={{ color: COLOR_FG_HELP }}>Last contact:</span> {lastContact}
             </div>
@@ -397,7 +413,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
           <Eyebrow>Key clinical</Eyebrow>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
             {props.conditions.length === 0 && (
-              <span style={{ fontSize: 12, color: COLOR_FG_HELP }}>No active conditions on file.</span>
+              <span style={{ fontSize: 13, color: COLOR_FG_HELP }}>No active conditions on file.</span>
             )}
             {props.conditions.slice(0, 6).map((c) => (
               <span
@@ -407,7 +423,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
                   borderRadius: 14,
                   border: `1px solid ${COLOR_BORDER}`,
                   fontFamily: 'Inter',
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 600,
                   color: COLOR_INK_2,
                   background: '#fff',
@@ -426,7 +442,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
               <>
                 <div>{plan.primary}</div>
                 {plan.sub && (
-                  <div style={{ fontFamily: 'Azeret Mono, monospace', color: COLOR_FG_HELP, fontSize: 10, marginTop: 2 }}>
+                  <div style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums', color: COLOR_FG_HELP, fontSize: 11, marginTop: 2 }}>
                     {plan.sub}
                   </div>
                 )}
@@ -575,7 +591,7 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
                     background: COLOR_BRAND,
                     color: '#fff',
                     fontFamily: 'var(--font-body)',
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 700,
                     cursor: 'pointer',
                   }}
@@ -593,6 +609,13 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
           <Section title="Events & visits">
             <UpcomingEventsList events={upcomingEventsFromVisits(props.fieldVisits)} />
           </Section>
+        )}
+
+        {tab === 'Automations' && (
+          <PlanOfCareAutomations
+            plan={props.carePlans[0]}
+            patientId={props.patient.id ?? ''}
+          />
         )}
       </main>
 
@@ -640,7 +663,7 @@ function PillTag({ dot, label }: { dot: string; label: string }): JSX.Element {
         border: `1px solid ${COLOR_BORDER}`,
         background: '#fff',
         fontFamily: 'Inter',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
         color: COLOR_INK_2,
       }}
@@ -657,7 +680,7 @@ function MetaField({ label, value }: { label: string; value: ReactNode }): JSX.E
       <div
         style={{
           fontFamily: 'Inter',
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 700,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -669,7 +692,7 @@ function MetaField({ label, value }: { label: string; value: ReactNode }): JSX.E
       <div
         style={{
           fontFamily: 'Inter',
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 600,
           color: COLOR_INK,
           marginTop: 4,
@@ -687,7 +710,7 @@ function Eyebrow({ children }: { children: ReactNode }): JSX.Element {
     <div
       style={{
         fontFamily: 'Inter',
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
@@ -759,10 +782,11 @@ function TopTabs({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                fontFamily: 'Inter',
-                fontSize: 14,
-                fontWeight: on ? 700 : 500,
+                fontFamily: 'var(--font-body, Inter, system-ui, sans-serif)',
+                fontSize: 15,
+                fontWeight: on ? 600 : 500,
                 color: on ? COLOR_INK : COLOR_FG_MUTE,
+                letterSpacing: '-0.005em',
               }}
             >
               <span>{t.k}</span>
@@ -775,7 +799,7 @@ function TopTabs({
                     borderRadius: 11,
                     background: COLOR_INK_2,
                     color: '#fff',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 700,
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -811,11 +835,11 @@ function Section({ title, right, children }: { title: string; right?: string; ch
   return (
     <section>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-        <h2 style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 17, color: COLOR_INK, margin: 0, letterSpacing: '-0.01em' }}>
+        <h2 style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 18, color: COLOR_INK, margin: 0, letterSpacing: '-0.01em' }}>
           {title}
         </h2>
         {right && (
-          <a style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: COLOR_FG_MUTE, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <a style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: COLOR_FG_MUTE, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
             {right}
             <IconChevronRight size={12} />
           </a>
@@ -840,7 +864,7 @@ function NeedsAttention({ items }: { items: { text: string; action: string; onCl
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8 }}>
         <IconAlertTriangle size={18} color={COLOR_BRAND_DEEP} />
-        <span style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 14, color: 'var(--wc-primary-900, #652F06)' }}>
+        <span style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 15, color: 'var(--wc-primary-900, #652F06)' }}>
           Needs attention
         </span>
       </div>
@@ -855,7 +879,7 @@ function NeedsAttention({ items }: { items: { text: string; action: string; onCl
             borderTop: '1px solid #FBD5BA',
           }}
         >
-          <span style={{ flex: 1, fontFamily: 'Inter', fontSize: 12.5, color: COLOR_INK_2, lineHeight: '18px' }}>
+          <span style={{ flex: 1, fontFamily: 'Inter', fontSize: 13.5, color: COLOR_INK_2, lineHeight: '18px' }}>
             {r.text}
           </span>
           <button
@@ -870,7 +894,7 @@ function NeedsAttention({ items }: { items: { text: string; action: string; onCl
               border: `1px solid ${COLOR_BORDER}`,
               cursor: 'pointer',
               fontFamily: 'Inter',
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: 600,
               color: COLOR_INK_2,
             }}
@@ -910,9 +934,9 @@ function CaseRowLite({ row }: { row: CaseRow }): JSX.Element {
         }}
       />
       <div style={{ flex: 1, minWidth: 0, paddingLeft: 10 }}>
-        <div style={{ fontFamily: 'Inter', fontSize: 13.5, fontWeight: 700, color: COLOR_INK }}>{row.title}</div>
-        <div style={{ fontFamily: 'Inter', fontSize: 11.5, color: COLOR_FG_HELP, marginTop: 3 }}>
-          <span style={{ fontFamily: 'Azeret Mono, monospace' }}>{row.ref}</span>
+        <div style={{ fontFamily: 'Inter', fontSize: 14.5, fontWeight: 700, color: COLOR_INK }}>{row.title}</div>
+        <div style={{ fontFamily: 'Inter', fontSize: 12.5, color: COLOR_FG_HELP, marginTop: 3 }}>
+          <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{row.ref}</span>
           {'  ·  '}
           {row.kind}
           {'  ·  '}
@@ -944,7 +968,7 @@ function StatusPill({ tone, text }: { tone: 'amber' | 'teal' | 'slate'; text: st
         background: t.bg,
         color: t.fg,
         fontFamily: 'Inter',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 600,
         whiteSpace: 'nowrap',
       }}
@@ -980,13 +1004,13 @@ function ActivityItem({ title, meta }: { title: string; meta: string }): JSX.Ele
             justifyContent: 'space-between',
             gap: 10,
             fontFamily: 'Inter',
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: 700,
             color: COLOR_INK,
           }}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-          <span style={{ fontWeight: 500, fontSize: 11, color: COLOR_FG_HELP, flex: 'none' }}>
+          <span style={{ fontWeight: 500, fontSize: 12, color: COLOR_FG_HELP, flex: 'none' }}>
             {meta ? new Date(meta).toLocaleString() : ''}
           </span>
         </div>
@@ -1011,7 +1035,7 @@ function Empty({ label }: { label: string }): JSX.Element {
       }}
     >
       <IconLayersIntersect size={24} />
-      <div style={{ fontSize: 12 }}>{label}</div>
+      <div style={{ fontSize: 13 }}>{label}</div>
     </div>
   );
 }
@@ -1022,7 +1046,7 @@ function RailHeading({ children }: { children: ReactNode }): JSX.Element {
       style={{
         fontFamily: 'Montserrat, system-ui, sans-serif',
         fontWeight: 700,
-        fontSize: 16,
+        fontSize: 17,
         color: COLOR_INK,
         margin: 0,
         marginBottom: 14,
@@ -1051,8 +1075,8 @@ function SDoHFlagsList({ flags }: { flags: SDoHFlag[] }): JSX.Element {
             }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: COLOR_INK }}>{f.name}</div>
-            <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP, marginTop: 2 }}>{f.since}</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: COLOR_INK }}>{f.name}</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP, marginTop: 2 }}>{f.since}</div>
           </div>
           <span
             style={{
@@ -1062,7 +1086,7 @@ function SDoHFlagsList({ flags }: { flags: SDoHFlag[] }): JSX.Element {
               background: f.severity === 'high' ? '#FCE4E2' : 'var(--wc-warning-100, #FEF5E5)',
               color: f.severity === 'high' ? '#B81100' : '#925200',
               fontFamily: 'Inter',
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: 700,
               letterSpacing: '0.02em',
             }}
@@ -1089,8 +1113,8 @@ function UpcomingEventsList({ events }: { events: UpcomingEvent[] }): JSX.Elemen
             padding: 14,
           }}
         >
-          <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: COLOR_INK }}>{e.title}</div>
-          <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP, marginTop: 4, lineHeight: '16px' }}>
+          <div style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 700, color: COLOR_INK }}>{e.title}</div>
+          <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP, marginTop: 4, lineHeight: '16px' }}>
             {e.when ? new Date(e.when).toLocaleString() : ''}
             {e.sub && (
               <>
@@ -1164,10 +1188,10 @@ function EcmTrackingPanel({
     >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
         <div>
-          <span style={{ fontFamily: 'Inter', fontSize: 22, fontWeight: 700, color: COLOR_INK }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 23, fontWeight: 700, color: COLOR_INK }}>
             {status.billable}
           </span>
-          <span style={{ fontFamily: 'Inter', fontSize: 13, color: COLOR_FG_HELP, marginLeft: 4 }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 14, color: COLOR_FG_HELP, marginLeft: 4 }}>
             of {status.cap} billable
           </span>
         </div>
@@ -1178,7 +1202,7 @@ function EcmTrackingPanel({
             background: toneBg,
             color: toneFg,
             fontFamily: 'Inter',
-            fontSize: 10.5,
+            fontSize: 11.5,
             fontWeight: 700,
             letterSpacing: '0.02em',
             whiteSpace: 'nowrap',
@@ -1200,13 +1224,13 @@ function EcmTrackingPanel({
         <div style={{ height: '100%', width: `${capPct}%`, background: toneBar, transition: 'width 200ms' }} />
       </div>
 
-      <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_MUTE, lineHeight: '17px' }}>
+      <div style={{ fontFamily: 'Inter', fontSize: 13, color: COLOR_FG_MUTE, lineHeight: '17px' }}>
         {status.windowClosed
           ? `Window closed ${new Date(status.windowEnd).toLocaleDateString()}`
           : `${status.daysRemaining} days remaining of ${windowDays}-day window`}
       </div>
       {(status.nonBillable > 0 || status.preConsentAttempts > 0) && (
-        <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP, marginTop: 4 }}>
+        <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP, marginTop: 4 }}>
           {status.nonBillable > 0 && `${status.nonBillable} non-billable`}
           {status.nonBillable > 0 && status.preConsentAttempts > 0 && ' · '}
           {status.preConsentAttempts > 0 && `${status.preConsentAttempts} pre-consent`}
@@ -1237,7 +1261,7 @@ function EcmTrackingPanel({
                   <div
                     style={{
                       fontFamily: 'Inter',
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 600,
                       color: COLOR_INK,
                       whiteSpace: 'nowrap',
@@ -1247,7 +1271,7 @@ function EcmTrackingPanel({
                   >
                     {outcomeLabel}
                   </div>
-                  <div style={{ fontFamily: 'Inter', fontSize: 11, color: COLOR_FG_HELP }}>
+                  <div style={{ fontFamily: 'Inter', fontSize: 12, color: COLOR_FG_HELP }}>
                     {channelLabel}
                     {c.sent ? ` · ${new Date(c.sent).toLocaleDateString()}` : ''}
                   </div>
@@ -1260,7 +1284,7 @@ function EcmTrackingPanel({
                     background: billable ? COLOR_TEAL_BG : COLOR_SURFACE_SUBTLE,
                     color: billable ? COLOR_TEAL_FG : COLOR_FG_MUTE,
                     fontFamily: 'Inter',
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: 700,
                   }}
                 >
@@ -1280,7 +1304,7 @@ function SubBlock({ title, count, children }: { title: string; count: number; ch
     <div style={{ border: `1px solid ${COLOR_BORDER}`, borderRadius: 12, padding: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
         <Eyebrow>{title}</Eyebrow>
-        <span style={{ fontFamily: 'Azeret Mono, monospace', fontSize: 11, color: COLOR_FG_HELP }}>{count}</span>
+        <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums', fontSize: 12, color: COLOR_FG_HELP }}>{count}</span>
       </div>
       {children}
     </div>
@@ -1288,9 +1312,9 @@ function SubBlock({ title, count, children }: { title: string; count: number; ch
 }
 
 function Bulleted({ items, empty }: { items: string[]; empty: string }): JSX.Element {
-  if (items.length === 0) return <span style={{ fontSize: 12, color: COLOR_FG_HELP }}>{empty}</span>;
+  if (items.length === 0) return <span style={{ fontSize: 13, color: COLOR_FG_HELP }}>{empty}</span>;
   return (
-    <ul style={{ margin: 0, paddingLeft: 16, color: COLOR_INK_2, fontSize: 12, lineHeight: '18px' }}>
+    <ul style={{ margin: 0, paddingLeft: 16, color: COLOR_INK_2, fontSize: 13, lineHeight: '18px' }}>
       {items.map((it) => (
         <li key={it}>{it}</li>
       ))}

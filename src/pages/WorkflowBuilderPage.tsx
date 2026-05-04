@@ -656,11 +656,11 @@ export function WorkflowBuilderPage(): JSX.Element {
                       <Stack gap={4}>
                         {steps.map((s, idx) => (
                           <Group key={s.id} gap="xs" wrap="nowrap">
-                            <Badge size="xs" variant="light" color="gray" ff="monospace">
+                            <Badge size="xs" variant="light" color="gray" ff="var(--font-mono, Inter, system-ui, sans-serif)" style={{ fontVariantNumeric: 'tabular-nums' }}>
                               {idx + 1}
                             </Badge>
                             <Text size="xs" c="dimmed">
-                              <span style={{ fontFamily: 'monospace' }}>{ACTION_LABELS[s.actionType]}</span>
+                              <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{ACTION_LABELS[s.actionType]}</span>
                               {' · '}
                               {s.title}
                               {s.conditionKey && s.conditionValue && (

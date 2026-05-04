@@ -357,7 +357,7 @@ function ReviewItemRow({ item }: { item: ReviewItem }): JSX.Element {
         <div
           style={{
             fontFamily: 'Inter, system-ui, sans-serif',
-            fontSize: 13.5,
+            fontSize: 14.5,
             fontWeight: 700,
             color: 'var(--wc-base-800, #012B49)',
           }}
@@ -368,7 +368,7 @@ function ReviewItemRow({ item }: { item: ReviewItem }): JSX.Element {
           <div
             style={{
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 11.5,
+              fontSize: 12.5,
               color: 'var(--wc-base-500, #8499AA)',
               marginTop: 3,
             }}
@@ -379,7 +379,7 @@ function ReviewItemRow({ item }: { item: ReviewItem }): JSX.Element {
         <div
           style={{
             fontFamily: 'Inter, system-ui, sans-serif',
-            fontSize: 11.5,
+            fontSize: 12.5,
             color: 'var(--wc-base-500, #8499AA)',
             marginTop: 3,
           }}

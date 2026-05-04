@@ -52,7 +52,7 @@ export function TimerBanner(): JSX.Element | null {
         alignItems: 'center',
         gap: 12,
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 13,
+        fontSize: 14,
         boxShadow: '0 2px 6px rgba(234,100,36,0.18)',
       }}
     >
@@ -68,7 +68,7 @@ export function TimerBanner(): JSX.Element | null {
           color: '#fff',
           padding: '4px 10px',
           borderRadius: 6,
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',
         }}
@@ -77,7 +77,8 @@ export function TimerBanner(): JSX.Element | null {
       </button>
       <span
         style={{
-          fontFamily: 'Azeret Mono, ui-monospace, SFMono-Regular, monospace',
+          fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)',
+          fontVariantNumeric: 'tabular-nums',
           fontWeight: 700,
           minWidth: 72,
           letterSpacing: '0.02em',
@@ -100,7 +101,7 @@ export function TimerBanner(): JSX.Element | null {
           background: '#fff',
           color: 'var(--wc-primary-700, #B84E1A)',
           fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 700,
           cursor: 'pointer',
         }}

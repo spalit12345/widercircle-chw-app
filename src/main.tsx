@@ -48,24 +48,24 @@ const theme = createTheme({
       '#D1190D', // 9  --wc-brand-800
     ],
   },
-  fontFamily: 'var(--wc-font-body, Inter, system-ui, -apple-system, sans-serif)',
-  fontFamilyMonospace: 'var(--wc-font-mono, ui-monospace, Menlo, monospace)',
+  fontFamily: 'var(--font-body, Inter, system-ui, sans-serif)',
+  fontFamilyMonospace: 'var(--font-mono, Inter, system-ui, sans-serif)',
   headings: {
-    fontFamily: 'var(--wc-font-display, Montserrat, system-ui, -apple-system, sans-serif)',
+    fontFamily: 'var(--font-display, Montserrat, system-ui, sans-serif)',
     sizes: {
       h1: {
-        fontSize: '1.125rem',
+        fontSize: '1.1875rem',
         fontWeight: '500',
         lineHeight: '2.0',
       },
     },
   },
   fontSizes: {
-    xs: '0.6875rem',
-    sm: '0.875rem',
-    md: '0.875rem',
-    lg: '1.0rem',
-    xl: '1.125rem',
+    xs: '0.75rem',
+    sm: '0.9375rem',
+    md: '0.9375rem',
+    lg: '1.0625rem',
+    xl: '1.1875rem',
   },
   defaultRadius: 'var(--wc-radius-md, 12px)',
 });

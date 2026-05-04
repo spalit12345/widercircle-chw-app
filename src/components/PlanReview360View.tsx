@@ -242,7 +242,7 @@ function SignatureGateBanner({
           alignItems: 'center',
           gap: 10,
           color: COLOR_TEAL_FG,
-          fontSize: 13,
+          fontSize: 14,
         }}
       >
         <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOR_TEAL_DOT }} />
@@ -266,7 +266,7 @@ function SignatureGateBanner({
         alignItems: 'center',
         gap: 12,
         color: COLOR_INK,
-        fontSize: 13,
+        fontSize: 14,
       }}
     >
       <IconAlertTriangle size={16} color={COLOR_WARNING_FG} />
@@ -274,7 +274,7 @@ function SignatureGateBanner({
         <div style={{ fontWeight: 700, color: COLOR_WARNING_FG, marginBottom: 2 }}>
           {isProvider ? 'Signature required to release for CHW review' : 'Awaiting Provider signature'}
         </div>
-        <div style={{ color: COLOR_INK_2, fontSize: 12 }}>
+        <div style={{ color: COLOR_INK_2, fontSize: 13 }}>
           {isProvider
             ? 'Sign below to release this plan to the CHW for review and member acknowledgement.'
             : 'CHW review opens automatically once the Care Provider signs this plan.'}
@@ -295,7 +295,7 @@ function SignatureGateBanner({
             background: COLOR_BRAND,
             color: '#fff',
             fontFamily: 'Inter, system-ui, sans-serif',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
           }}
@@ -351,10 +351,10 @@ function ConsentsSection({
             <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOR_TEAL_DOT }} />
             <Eyebrow>Provider · signed</Eyebrow>
           </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: COLOR_INK }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: COLOR_INK }}>
             {providerSignedBy ?? 'Care Provider'}
           </div>
-          <div style={{ fontSize: 12, color: COLOR_FG_MUTE }}>
+          <div style={{ fontSize: 13, color: COLOR_FG_MUTE }}>
             {providerSignedAt ? new Date(providerSignedAt).toLocaleString() : '—'} · plan released for CHW review
           </div>
           {providerSignatureDataUrl && (
@@ -376,7 +376,7 @@ function ConsentsSection({
                   style={{ maxWidth: '100%', maxHeight: 140, display: 'block' }}
                 />
               </div>
-              <figcaption style={{ fontSize: 11, color: COLOR_FG_HELP }}>
+              <figcaption style={{ fontSize: 12, color: COLOR_FG_HELP }}>
                 Captured signature · stored on the acknowledgment Communication
               </figcaption>
             </figure>
@@ -398,7 +398,7 @@ function ConsentsSection({
             <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOR_BRAND }} />
             <Eyebrow>Provider · ready</Eyebrow>
           </div>
-          <div style={{ fontSize: 13, color: COLOR_INK_2, lineHeight: '18px' }}>
+          <div style={{ fontSize: 14, color: COLOR_INK_2, lineHeight: '18px' }}>
             By signing you attest that the action items above accurately reflect the plan of care for this
             member. Your signature releases this plan for CHW review.
           </div>
@@ -419,7 +419,7 @@ function ConsentsSection({
               background: signatureDataUrl ? COLOR_BRAND : COLOR_BORDER,
               color: '#fff',
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 700,
               cursor: signatureDataUrl ? 'pointer' : 'not-allowed',
             }}
@@ -443,10 +443,10 @@ function ConsentsSection({
             <IconAlertTriangle size={14} color={COLOR_WARNING_FG} />
             <Eyebrow style={{ color: COLOR_WARNING_FG }}>Awaiting Provider</Eyebrow>
           </div>
-          <div style={{ fontSize: 13, color: COLOR_INK, fontWeight: 700 }}>
+          <div style={{ fontSize: 14, color: COLOR_INK, fontWeight: 700 }}>
             CHW review is locked until the Care Provider signs.
           </div>
-          <div style={{ fontSize: 12, color: COLOR_INK_2, lineHeight: '17px' }}>
+          <div style={{ fontSize: 13, color: COLOR_INK_2, lineHeight: '17px' }}>
             You'll get a notification the moment the plan is released. If this is urgent, ping the assigned
             Provider via the sign-off queue.
           </div>
@@ -496,7 +496,7 @@ function PlanHeader({
           style={{
             fontFamily: 'Inter, system-ui, sans-serif',
             fontWeight: 700,
-            fontSize: 12,
+            fontSize: 13,
             letterSpacing: '0.06em',
             color: COLOR_BRAND_DEEP,
             textTransform: 'uppercase',
@@ -508,28 +508,36 @@ function PlanHeader({
 
       {patient && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 8 }}>
+          {patient?.photo?.[0]?.url ? (
+            <img
+              src={patient.photo[0].url}
+              alt={memberInitials(patient)}
+              style={{ width: 28, height: 28, borderRadius: 14, objectFit: 'cover' }}
+            />
+          ) : (
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                background: COLOR_INK_2,
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'Montserrat, system-ui, sans-serif',
+                fontWeight: 700,
+                fontSize: 12,
+              }}
+            >
+              {memberInitials(patient)}
+            </span>
+          )}
           <span
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
-              background: COLOR_INK_2,
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 11,
-            }}
-          >
-            {memberInitials(patient)}
-          </span>
-          <span
-            style={{
-              fontFamily: 'Montserrat, system-ui, sans-serif',
-              fontWeight: 700,
-              fontSize: 14,
+              fontSize: 15,
               color: COLOR_INK,
             }}
           >
@@ -549,8 +557,8 @@ function PlanHeader({
       {plan?.meta?.lastUpdated && (
         <span
           style={{
-            fontFamily: 'Azeret Mono, monospace',
-            fontSize: 11,
+            fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums',
+            fontSize: 12,
             color: COLOR_FG_MUTE,
             marginLeft: 4,
           }}
@@ -598,7 +606,7 @@ function HeaderButton({
         background: '#fff',
         color: disabled ? COLOR_FG_HELP : COLOR_INK_2,
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 600,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.6 : 1,
@@ -664,8 +672,8 @@ function PlanLeftRail({
             >
               <span style={{ color: on ? COLOR_BRAND_DEEP : COLOR_FG_MUTE, display: 'flex' }}>{s.icon}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: on ? 700 : 600, color: COLOR_INK }}>{s.label}</div>
-                {s.sub && <div style={{ fontSize: 10, color: COLOR_FG_HELP, marginTop: 1 }}>{s.sub}</div>}
+                <div style={{ fontSize: 13, fontWeight: on ? 700 : 600, color: COLOR_INK }}>{s.label}</div>
+                {s.sub && <div style={{ fontSize: 11, color: COLOR_FG_HELP, marginTop: 1 }}>{s.sub}</div>}
               </div>
               <span
                 style={{
@@ -674,8 +682,8 @@ function PlanLeftRail({
                   borderRadius: 11,
                   background: on ? '#fff' : COLOR_BORDER,
                   color: on ? COLOR_BRAND_DEEP : COLOR_FG_MUTE,
-                  fontFamily: 'Azeret Mono, monospace',
-                  fontSize: 10,
+                  fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums',
+                  fontSize: 11,
                   fontWeight: 700,
                   textAlign: 'center',
                 }}
@@ -690,7 +698,7 @@ function PlanLeftRail({
       <div>
         <Eyebrow style={{ padding: '0 6px', marginBottom: 8 }}>Version history</Eyebrow>
         {versions.length === 0 ? (
-          <div style={{ padding: '8px 10px', fontSize: 11, color: COLOR_FG_HELP }}>No versions yet.</div>
+          <div style={{ padding: '8px 10px', fontSize: 12, color: COLOR_FG_HELP }}>No versions yet.</div>
         ) : (
           versions.map((v, idx) => {
             const num = versions.length - idx;
@@ -709,8 +717,8 @@ function PlanLeftRail({
               >
                 <span
                   style={{
-                    fontFamily: 'Azeret Mono, monospace',
-                    fontSize: 11,
+                    fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums',
+                    fontSize: 12,
                     fontWeight: 700,
                     color: COLOR_INK,
                     width: 24,
@@ -718,7 +726,7 @@ function PlanLeftRail({
                 >
                   v{num}
                 </span>
-                <span style={{ fontSize: 11, color: COLOR_FG_MUTE, flex: 1 }}>
+                <span style={{ fontSize: 12, color: COLOR_FG_MUTE, flex: 1 }}>
                   {v.meta?.lastUpdated ? new Date(v.meta.lastUpdated).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
                 </span>
                 {isLatest && v.status !== 'completed' ? (
@@ -758,14 +766,14 @@ function PlanMainHeader({
             style={{
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 22,
+              fontSize: 23,
               color: COLOR_INK,
               margin: 0,
             }}
           >
             Plan of Care · Review &amp; sign
           </h1>
-          <div style={{ fontSize: 13, color: COLOR_FG_MUTE, marginTop: 4 }}>
+          <div style={{ fontSize: 14, color: COLOR_FG_MUTE, marginTop: 4 }}>
             Auto-generated from latest assessment + clinical history for {patientName}
             {changesSinceV3 > 0 && ` · ${changesSinceV3} change${changesSinceV3 === 1 ? '' : 's'} since previous version`}
           </div>
@@ -806,13 +814,13 @@ function Stepper({ steps, currentIndex }: { steps: string[]; currentIndex: numbe
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#fff',
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 700,
                 }}
               >
                 {dotIcon ?? <span style={{ width: 10, height: 10, borderRadius: 5, background: dotBg }} />}
               </span>
-              <span style={{ fontSize: 11, fontWeight: current ? 700 : 500, color: current ? COLOR_INK : COLOR_FG_MUTE }}>
+              <span style={{ fontSize: 12, fontWeight: current ? 700 : 500, color: current ? COLOR_INK : COLOR_FG_MUTE }}>
                 {label}
               </span>
             </div>
@@ -855,7 +863,7 @@ function ProblemsSection({ items }: { items: ReviewItemForView[] }): JSX.Element
               background: '#fff',
               color: COLOR_FG_HELP,
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
               cursor: 'not-allowed',
             }}
@@ -875,7 +883,7 @@ function ProblemsSection({ items }: { items: ReviewItemForView[] }): JSX.Element
         }}
       >
         {items.length === 0 ? (
-          <div style={{ padding: 32, color: COLOR_FG_HELP, textAlign: 'center', fontSize: 13 }}>
+          <div style={{ padding: 32, color: COLOR_FG_HELP, textAlign: 'center', fontSize: 14 }}>
             No items on this plan.
           </div>
         ) : (
@@ -901,16 +909,16 @@ function ProblemRow({ item }: { item: ReviewItemForView }): JSX.Element {
       }}
     >
       <div>
-        <div style={{ fontFamily: 'Azeret Mono, monospace', fontSize: 13, fontWeight: 700, color: COLOR_INK }}>
+        <div style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 700, color: COLOR_INK }}>
           {item.id.slice(0, 6).toUpperCase()}
         </div>
-        <div style={{ fontSize: 10, color: COLOR_FG_HELP, marginTop: 2 }}>Item</div>
+        <div style={{ fontSize: 11, color: COLOR_FG_HELP, marginTop: 2 }}>Item</div>
       </div>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <span
             style={{
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: 600,
               color: COLOR_INK,
               textDecoration: isResolved ? 'line-through' : 'none',
@@ -921,10 +929,10 @@ function ProblemRow({ item }: { item: ReviewItemForView }): JSX.Element {
           <Chip tone={palette.tone} dot={!isResolved}>
             {palette.label}
           </Chip>
-          {item.ownerLabel && <span style={{ fontSize: 11, color: COLOR_FG_HELP }}>· owner {item.ownerLabel}</span>}
+          {item.ownerLabel && <span style={{ fontSize: 12, color: COLOR_FG_HELP }}>· owner {item.ownerLabel}</span>}
         </div>
         {item.description && (
-          <div style={{ fontSize: 11, color: COLOR_FG_MUTE, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 12, color: COLOR_FG_MUTE, display: 'flex', alignItems: 'center', gap: 6 }}>
             <IconLink size={11} />
             {item.description}
           </div>
@@ -958,7 +966,7 @@ function CareTeamSection({ patientId }: { patientId: string | undefined }): JSX.
         }}
       >
         <Eyebrow>Where it lives</Eyebrow>
-        <div style={{ fontSize: 13, color: COLOR_INK_2, lineHeight: '20px', maxWidth: 520 }}>
+        <div style={{ fontSize: 14, color: COLOR_INK_2, lineHeight: '20px', maxWidth: 520 }}>
           Care team rosters live on the member profile alongside RelatedPerson records (caregivers,
           family) and Practitioner assignments. The plan inherits whoever is on file there at sign
           time.
@@ -977,7 +985,7 @@ function CareTeamSection({ patientId }: { patientId: string | undefined }): JSX.
               background: COLOR_BRAND,
               color: '#fff',
               fontFamily: 'Inter, system-ui, sans-serif',
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
               textDecoration: 'none',
             }}
@@ -985,7 +993,7 @@ function CareTeamSection({ patientId }: { patientId: string | undefined }): JSX.
             <IconArrowUpRight size={14} /> Open relationships on member profile
           </a>
         ) : (
-          <span style={{ fontSize: 12, color: COLOR_FG_HELP }}>
+          <span style={{ fontSize: 13, color: COLOR_FG_HELP }}>
             Pick a member above to manage their care team.
           </span>
         )}
@@ -1010,10 +1018,10 @@ function EmptyTab({ label }: { label: string }): JSX.Element {
       }}
     >
       <IconHierarchy size={28} />
-      <div style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 15, color: COLOR_INK }}>
+      <div style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 16, color: COLOR_INK }}>
         {label}
       </div>
-      <div style={{ fontSize: 12 }}>This section will populate as more of the v2 plan-of-care surface lands.</div>
+      <div style={{ fontSize: 13 }}>This section will populate as more of the v2 plan-of-care surface lands.</div>
     </div>
   );
 }
@@ -1063,7 +1071,7 @@ function Eyebrow({ children, style }: { children: ReactNode; style?: React.CSSPr
     <div
       style={{
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: 700,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
@@ -1080,10 +1088,10 @@ function SectionTitle({ title, subtitle, right }: { title: string; subtitle?: st
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
       <div>
-        <h2 style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 18, color: COLOR_INK, margin: 0 }}>
+        <h2 style={{ fontFamily: 'Montserrat, system-ui, sans-serif', fontWeight: 700, fontSize: 19, color: COLOR_INK, margin: 0 }}>
           {title}
         </h2>
-        {subtitle && <div style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, color: COLOR_FG_HELP, marginTop: 4 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, color: COLOR_FG_HELP, marginTop: 4 }}>{subtitle}</div>}
       </div>
       {right}
     </div>

@@ -239,11 +239,11 @@ export function ConsentBlock({
             <Text size="sm">
               Captured {status.latest.dateTime ? formatDateTime(status.latest.dateTime) : 'unknown'}
               {status.latest.performer?.[0]?.display && <> by {status.latest.performer[0].display}</>}{' '}
-              via <span style={{ fontFamily: 'monospace' }}>{consentMethod(status.latest)}</span>.
+              via <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{consentMethod(status.latest)}</span>.
             </Text>
             <Text size="xs" c="dimmed" mt={4}>
               Expires {status.expiresOn ? formatDate(status.expiresOn) : ''} · script version{' '}
-              <span style={{ fontFamily: 'monospace' }}>{config.scriptVersion}</span>
+              <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{config.scriptVersion}</span>
             </Text>
           </Alert>
         )}
@@ -282,7 +282,7 @@ export function ConsentBlock({
                 <Stack gap="xs">
                   <Text size="sm" fw={600}>
                     Verbal attestation script ·{' '}
-                    <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{config.scriptVersion}</span>
+                    <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{config.scriptVersion}</span>
                   </Text>
                   <Text size="sm">{config.scriptText}</Text>
                   <Switch
@@ -315,7 +315,7 @@ export function ConsentBlock({
                       padding: '8px 12px',
                       border: '1px solid var(--mantine-color-gray-4)',
                       borderRadius: 'var(--mantine-radius-sm)',
-                      fontFamily: 'monospace',
+                      fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums',
                       width: 200,
                     }}
                     aria-label="Portal e-signature date"

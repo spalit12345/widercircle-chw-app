@@ -709,8 +709,8 @@ export function VisitWorkspacePage(): JSX.Element {
                 {phase === 'ended' && (
                   <Alert color="green" variant="light" title="Visit finalized">
                     <Text size="xs">
-                      Encounter set to <span style={{ fontFamily: 'monospace' }}>finished</span>. Billable
-                      duration <span style={{ fontFamily: 'monospace' }}>{formatDuration(billableSec)}</span>{' '}
+                      Encounter set to <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>finished</span>. Billable
+                      duration <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{formatDuration(billableSec)}</span>{' '}
                       persisted as an extension and flows to time tracking.
                     </Text>
                     {startedAt && endedAt && (
@@ -881,9 +881,9 @@ export function VisitWorkspacePage(): JSX.Element {
               member's time. This member has no active CarePlan.
             </Text>
             <Text size="xs" c="dimmed" mt="xs">
-              You can author a Plan now from <span style={{ fontFamily: 'monospace' }}>/plan-of-care</span>{' '}
+              You can author a Plan now from <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>/plan-of-care</span>{' '}
               or close anyway — the visit will be flagged{' '}
-              <span style={{ fontFamily: 'monospace' }}>visit-closed-without-plan = true</span> and
+              <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>visit-closed-without-plan = true</span> and
               treated as non-billable.
             </Text>
           </Alert>
@@ -918,7 +918,7 @@ export function VisitWorkspacePage(): JSX.Element {
             <Stack gap="xs">
               <Text size="xs" fw={600} c="dimmed">
                 Verbal recording script ·{' '}
-                <span style={{ fontFamily: 'monospace' }}>{RECORDING_SCRIPT_VERSION}</span>
+                <span style={{ fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)', fontVariantNumeric: 'tabular-nums' }}>{RECORDING_SCRIPT_VERSION}</span>
               </Text>
               <Text size="sm">{RECORDING_SCRIPT_TEXT}</Text>
             </Stack>

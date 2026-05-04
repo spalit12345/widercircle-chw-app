@@ -246,7 +246,7 @@ function ProfileMenu(): JSX.Element {
               color: '#FFFFFF',
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 13,
               marginTop: 8,
               marginBottom: 4,
               display: 'flex',

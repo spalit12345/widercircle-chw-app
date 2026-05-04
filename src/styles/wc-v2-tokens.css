@@ -3,8 +3,6 @@
    Colors + Typography foundations
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&display=swap');
-
 /* ---------- Inter (body / UI) — self-hosted ----------
    Variable font covers all weights + slants; static files kept as fallback. */
 @font-face { font-family: 'Inter'; font-style: oblique 0deg 10deg; font-weight: 100 900; font-display: swap;
@@ -204,24 +202,26 @@
   --font-body:    'Inter', system-ui, sans-serif;         /* body copy, button text, labels */
   --font-ui:      'Inter', system-ui, sans-serif;         /* alias — button text */
   --font-label:   'Inter', system-ui, sans-serif;         /* alias — input labels, large body */
-  --font-mono:    'Azeret Mono', 'SF Mono', ui-monospace, monospace;
+  /* Design v2 only ships Inter + Montserrat. Mono contexts use Inter
+     with tabular-nums via .wc-mono / font-variant-numeric: tabular-nums. */
+  --font-mono:    'Inter', system-ui, sans-serif;
 
   /* Fluid type scale — sourced from the Figma type specimen.
      H1-H4 use Montserrat Bold; body uses Inter. */
-  --fs-h1: 30px;   --lh-h1: 36px;   /* Montserrat Bold — headlines */
-  --fs-h2a: 24px;  --lh-h2a: 32px;  /* sub headlines */
-  --fs-h2b: 20px;  --lh-h2b: 28px;  /* list titles */
-  --fs-h3a: 19px;  --lh-h3a: 28px;  /* list header, large buttons */
-  --fs-h3b: 16px;  --lh-h3b: 24px;  /* input header */
-  --fs-h4: 14px;   --lh-h4: 20px;   /* small header */
+  --fs-h1: 31px;   --lh-h1: 36px;   /* Montserrat Bold — headlines */
+  --fs-h2a: 25px;  --lh-h2a: 32px;  /* sub headlines */
+  --fs-h2b: 21px;  --lh-h2b: 28px;  /* list titles */
+  --fs-h3a: 20px;  --lh-h3a: 28px;  /* list header, large buttons */
+  --fs-h3b: 17px;  --lh-h3b: 24px;  /* input header */
+  --fs-h4: 15px;   --lh-h4: 20px;   /* small header */
 
-  --fs-p1: 17px;  --lh-p1: 25px;   /* large body — Inter SemiBold */
-  --fs-p2: 15px;  --lh-p2: 22px;   /* default navbar titles */
-  --fs-p3: 14px;  --lh-p3: 20px;   /* body text, default buttons — Inter */
-  --fs-l1: 14px;  --lh-l1: 20px;   /* default links */
-  --fs-l2: 13px;  --lh-l2: 18px;   /* small links */
-  --fs-p4a: 12px; --lh-p4a: 16px;  /* small nav, small buttons, caption */
-  --fs-p4b: 11px; --lh-p4b: 14px;  /* small labels */
+  --fs-p1: 18px;  --lh-p1: 25px;   /* large body — Inter SemiBold */
+  --fs-p2: 16px;  --lh-p2: 22px;   /* default navbar titles */
+  --fs-p3: 15px;  --lh-p3: 20px;   /* body text, default buttons — Inter */
+  --fs-l1: 15px;  --lh-l1: 20px;   /* default links */
+  --fs-l2: 14px;  --lh-l2: 18px;   /* small links */
+  --fs-p4a: 13px; --lh-p4a: 16px;  /* small nav, small buttons, caption */
+  --fs-p4b: 12px; --lh-p4b: 14px;  /* small labels */
 }
 
 /* ============================================================
@@ -290,7 +290,9 @@
 }
 .wc-mono, code.wc, .wc-code {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-size: 14px;
   line-height: 20px;
   color: var(--fg-1);
   background: var(--wc-base-100);

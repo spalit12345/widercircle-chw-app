@@ -657,7 +657,7 @@ export function SDoHAssessmentPage(): JSX.Element {
             style={{
               fontFamily: 'Inter, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 13,
               letterSpacing: '0.05em',
               color: 'var(--wc-info-700, #015F5D)',
               textTransform: 'uppercase',
@@ -670,7 +670,7 @@ export function SDoHAssessmentPage(): JSX.Element {
             style={{
               fontFamily: 'Montserrat, system-ui, sans-serif',
               fontWeight: 700,
-              fontSize: 14,
+              fontSize: 15,
               color: 'var(--wc-base-800, #012B49)',
             }}
           >
@@ -678,8 +678,9 @@ export function SDoHAssessmentPage(): JSX.Element {
           </span>
           <span
             style={{
-              fontFamily: 'Azeret Mono, monospace',
-              fontSize: 11,
+              fontFamily: 'var(--font-mono, Inter, system-ui, sans-serif)',
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: 12,
               color: 'var(--wc-base-600, #506D85)',
             }}
           >
