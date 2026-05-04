@@ -49,7 +49,6 @@ import {
   ECM_OUTCOMES,
   type EcmStatus,
 } from '../utils/ecm';
-import { PlanOfCareAutomations } from './PlanOfCareAutomations';
 
 const COLOR_INK = 'var(--wc-base-800, #012B49)';
 const COLOR_INK_2 = 'var(--wc-base-700, #34556D)';
@@ -248,9 +247,9 @@ const upcomingEventsFromVisits = (visits: Encounter[]): UpcomingEvent[] =>
   }));
 
 export function MemberContext360View(props: MemberContext360Props): JSX.Element {
-  const [tab, setTab] = useState<
-    'Overview' | 'Activity' | 'Cases' | 'Clinical' | 'SDoH' | 'Events' | 'Automations'
-  >('Overview');
+  const [tab, setTab] = useState<'Overview' | 'Activity' | 'Cases' | 'Clinical' | 'SDoH' | 'Events'>(
+    'Overview'
+  );
 
   const tabs: { k: typeof tab; n?: number }[] = [
     { k: 'Overview' },
@@ -259,7 +258,6 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
     { k: 'Clinical' },
     { k: 'SDoH' },
     { k: 'Events', n: props.fieldVisits.length },
-    { k: 'Automations' },
   ];
 
   const overdue = overdueCaseCount(props.cases);
@@ -609,13 +607,6 @@ export function MemberContext360View(props: MemberContext360Props): JSX.Element 
           <Section title="Events & visits">
             <UpcomingEventsList events={upcomingEventsFromVisits(props.fieldVisits)} />
           </Section>
-        )}
-
-        {tab === 'Automations' && (
-          <PlanOfCareAutomations
-            plan={props.carePlans[0]}
-            patientId={props.patient.id ?? ''}
-          />
         )}
       </main>
 

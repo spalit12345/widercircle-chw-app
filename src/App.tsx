@@ -75,6 +75,7 @@ import { MemberContextPage } from './pages/MemberContextPage';
 import { RelationshipsManagePage } from './pages/RelationshipsManagePage';
 import { MyCarePlansPage } from './pages/MyCarePlansPage';
 import { ReferralsPage } from './pages/ReferralsPage';
+import { AutomationsPage } from './pages/AutomationsPage';
 
 export function App(): JSX.Element | null {
   const medplum = useMedplum();
@@ -160,6 +161,7 @@ export function App(): JSX.Element | null {
                 }
               />
               <Route path="/today" element={<TodayPage />} />
+              <Route path="/automations" element={<AutomationsPage />} />
               <Route path="/eligibility" element={<EligibilityCheckPage />} />
               <Route path="/encounters/:encounterId/pre-visit" element={<PreVisitPage />} />
               <Route path="/sdoh" element={<SDoHAssessmentPage />} />

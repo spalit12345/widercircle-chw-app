@@ -21,6 +21,7 @@ import {
   IconHome2,
   IconLogout,
   IconSearch,
+  IconSitemap,
 } from '@tabler/icons-react';
 import type { JSX, ReactNode } from 'react';
 import { useEffect, useMemo } from 'react';
@@ -62,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'events', label: 'Events', href: '/my-schedule', Icon: IconCalendar, match: (p) => p.startsWith('/my-schedule') || p.startsWith('/Calendar') || p.startsWith('/encounters') },
   { id: 'billing', label: 'Billing', href: '/billing-dashboard', Icon: IconCash, match: (p) => p.startsWith('/billing'), requiresPermission: 'billing.view' },
   { id: 'referrals', label: 'Referrals', href: '/sdoh', Icon: IconActivity, match: (p) => p.startsWith('/referrals') || p.startsWith('/eligibility') || p.startsWith('/sdoh') || p.startsWith('/time-tracking'), requiresPermission: 'referrals.manage' },
+  { id: 'automations', label: 'Automations', href: '/automations', Icon: IconSitemap, match: (p) => p.startsWith('/automations') },
   { id: 'reports', label: 'Reports', href: '/admin/audit-log', Icon: IconChartHistogram, match: (p) => p.startsWith('/admin/audit-log'), requiresPermission: 'admin.roles' },
   { id: 'alerts', label: 'Alerts', href: '/alerts', Icon: IconAlertHexagon, match: (p) => p.startsWith('/alerts') },
   { id: 'admin', label: 'Admin', href: '/admin/roles', Icon: IconBell, match: (p) => p.startsWith('/integrations') || p.startsWith('/onboarding') || p.startsWith('/admin/roles') || p.startsWith('/admin/workflows'), requiresPermission: 'admin.roles', separatorBefore: true },
